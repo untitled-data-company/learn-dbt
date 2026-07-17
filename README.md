@@ -5,7 +5,7 @@ in-browser SQL exercises — no local database required.
 
 ## Tech Stack
 
-- **Next.js 15** (App Router) + React 19 + TypeScript
+- **Next.js 16** (App Router) + React 19 + TypeScript
 - **Tailwind CSS** for styling
 - **DuckDB-WASM** for in-browser SQL execution
 - **Monaco Editor** for code editing

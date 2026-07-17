@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  turbopack: {},
   webpack: (config) => {
     // DuckDB-WASM and Arrow need these exclusions
     config.resolve.fallback = {
