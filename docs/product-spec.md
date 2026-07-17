@@ -27,6 +27,17 @@ Transform Luca's daily manual query into a reliable dbt model that can run every
 - Static site generator for content pages.
 - Exercise runner that can execute SQL and dbt commands in the browser or a sandbox.
 
+
+## Tech stack (decided)
+
+- **Framework:** Next.js (App Router) — native React environment for the interactive editor, runner, and grader.
+- **Styling:** Tailwind CSS.
+- **Code editor:** Monaco Editor — SQL, Python, YAML highlighting out of the box; extensible for dbt-Jinja.
+- **SQL engine:** DuckDB-WASM — zero-install, zero-cost, runs in the browser.
+- **dbt runner:** Lightweight in-browser compiler that handles `source()`, `ref()`, and basic model config, then executes compiled SQL on DuckDB-WASM.
+- **Progress storage:** `localStorage` for the MVP.
+- **Deploy target:** Vercel.
+
 ## Out of scope for module 1
 
 - Incremental models
