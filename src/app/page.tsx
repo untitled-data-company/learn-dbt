@@ -1,10 +1,45 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <h1 className="text-4xl font-bold">Learn dbt</h1>
-      <p className="mt-4 text-lg text-gray-600">
-        Interactive dbt learning platform — bootstrap placeholder.
-      </p>
+    <main className="max-w-3xl mx-auto px-6 py-12">
+      <header className="mb-10">
+        <h1 className="text-4xl font-bold text-gray-900 mb-3">Learn dbt</h1>
+        <p className="text-lg text-gray-600">
+          A story-driven, interactive course where an analyst learns dbt by
+          solving realistic exercises — right in the browser.
+        </p>
+      </header>
+
+      <section className="mb-10">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+          The premise
+        </h2>
+        <div className="space-y-4 text-gray-700 leading-relaxed">
+          <p>
+            <strong>Luca</strong> is an analyst at a small e-commerce company.
+            Every morning he runs the same SQL query by hand to power a slow
+            dashboard. One day his manager asks him to make it reliable, fast,
+            and independent of his clicking finger.
+          </p>
+          <p>
+            The company already uses <strong>dbt</strong>. Luca must learn how
+            to use it — and you will help him, one chapter at a time.
+          </p>
+        </div>
+      </section>
+
+      <div className="flex items-center gap-4">
+        <Link
+          href="/chapters/chapter-0"
+          className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+        >
+          Start Chapter 0 &rarr;
+        </Link>
+        <span className="text-sm text-gray-500">
+          No dbt experience needed — just SQL.
+        </span>
+      </div>
     </main>
   );
 }
