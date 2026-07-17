@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.next/
 .env
 .env.local
 *.log
@@ -7,3 +8,5 @@ __pycache__/
 .ipynb_checkpoints/
 .duckdb/
 *.duckdb
+tsconfig.tsbuildinfo
+next-env.d.ts
