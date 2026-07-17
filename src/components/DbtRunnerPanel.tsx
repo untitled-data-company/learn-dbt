@@ -208,7 +208,16 @@ export function DbtRunnerPanel() {
 
       {/* Right panel: manifest editor */}
       <div className="flex-1 min-h-0 min-w-0">
-        <CodeEditor value={manifest} onChange={setManifest} language="yaml" />
+        <CodeEditor
+          files={[
+            {
+              name: "manifest.yaml",
+              language: "yaml",
+              defaultValue: manifest,
+            },
+          ]}
+          onChange={(_name, value) => setManifest(value)}
+        />
       </div>
     </div>
   );

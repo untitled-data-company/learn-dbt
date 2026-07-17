@@ -143,7 +143,16 @@ export function ExerciseRunner({
 
       {/* Right panel: Monaco editor */}
       <div className="flex-1 min-h-0 min-w-0">
-        <CodeEditor value={sql} onChange={setSql} language={language} />
+        <CodeEditor
+          files={[
+            {
+              name: "query.sql",
+              language,
+              defaultValue: sql,
+            },
+          ]}
+          onChange={(_name, value) => setSql(value)}
+        />
       </div>
     </div>
   );
