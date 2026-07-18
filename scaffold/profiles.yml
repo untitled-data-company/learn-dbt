@@ -1,0 +1,20 @@
+# profiles.yml
+# Chapter 1 — connection profile for the dbt project.
+#
+# profiles.yml tells dbt which database to connect to and how. The `profile`
+# key in dbt_project.yml (above) points to a profile name here, and dbt uses
+# the `target` to select which output configuration to use.
+#
+# In the browser runner this file is reference-only. In a real deployment it
+# typically lives at ~/.dbt/profiles.yml (not inside the repo) and is often
+# gitignored to avoid committing credentials.
+#
+# Here we use DuckDB — a zero-server embedded database — matching the
+# in-browser DuckDB-WASM engine the runner uses.
+
+analytics:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: analytics.duckdb

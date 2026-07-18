@@ -1,0 +1,22 @@
+# models/sources.yml
+# Chapter 1 — declares the raw tables loaded by the ingestion tool.
+#
+# These tables are NOT built by dbt. They arrive from outside (Fivetran,
+# Airbyte, a custom loader, etc.) and dbt needs to know they exist so it can
+# resolve {{ source('shop', 'raw_orders') }} calls in model SQL.
+#
+# Chapter 2 covers source() in depth. For Chapter 1, this file is here so the
+# project scaffold is complete and the raw tables are declared.
+
+version: 2
+
+sources:
+  - name: shop
+    description: "Raw e-commerce tables loaded by Fivetran."
+    tables:
+      - name: raw_orders
+        description: "One row per order line."
+      - name: raw_products
+        description: "One row per product."
+      - name: raw_customers
+        description: "One row per customer."
