@@ -108,7 +108,6 @@ export function ChapterExerciseRunner({
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dbLoaded]);
 
   // ── Build files array for CodeEditor ──

@@ -125,9 +125,6 @@ export function compileModel(
       // needs to reference a valid source.  This allows the "plot twist"
       // scenario where the YAML is renamed but the SQL stays the same.
       return tableName;
-      // This handles the case where the table was renamed in sources.yml but
-      // the model SQL still uses the old name (the plot twist).
-      return tableName;
     }
   );
 
