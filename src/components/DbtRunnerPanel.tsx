@@ -16,7 +16,7 @@ import { loadSeedData } from "@/lib/duckdb";
 
 const DEFAULT_MANIFEST: ProjectManifest = {
   sources: {
-    ecommerce: { name: "ecommerce", table: "raw_orders" },
+    ecommerce: { name: "ecommerce", tables: ["raw_orders"] },
   },
   models: {
     stg_orders: {

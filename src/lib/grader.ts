@@ -76,6 +76,183 @@ export interface GradeResult {
 // Public API
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Types for dbt exercise grading
+// ---------------------------------------------------------------------------
+
+export interface DbtGradeInput {
+  /** The raw YAML content of sources.yml */
+  sourcesYaml: string;
+  /** The raw SQL content of the model */
+  modelSql: string;
+  /** The compiled SQL after source() resolution */
+  compiledSql: string;
+  /** Whether dbt run succeeded for all models */
+  dbtRunSuccess: boolean;
+  /** Expected source name */
+  expectedSourceName: string;
+  /** Expected table names under the source */
+  expectedTables: string[];
+  /** Table names that should be referenced via source() in the SQL */
+  expectedSourceRefs: string[];
+  /** Table names that should NOT appear literally in the compiled SQL */
+  forbiddenLiteralTables: string[];
+}
+
+export function gradeDbtExercise(input: DbtGradeInput): GradeResult {
+const checks: CheckResult[] = [];
+
+// 1. dbt run success
+const runCheck: CheckResult = {
+  name: "dbtRunSuccess",
+  passed: input.dbtRunSuccess,
+  message: input.dbtRunSuccess
+    ? "dbt run completed successfully."
+    : "dbt run failed. Check the compilation errors above.",
+};
+checks.push(runCheck);
+if (!runCheck.passed) {
+  return fail(runCheck, checks);
+}
+
+// 2. sources.yml structure
+const yamlCheck = checkSourcesYaml(input);
+checks.push(yamlCheck);
+if (!yamlCheck.passed) {
+  return fail(yamlCheck, checks);
+}
+
+// 3. SQL uses source() for expected tables
+const sourceUsageCheck = checkSourceUsage(input);
+checks.push(sourceUsageCheck);
+if (!sourceUsageCheck.passed) {
+  return fail(sourceUsageCheck, checks);
+}
+
+// 4. Compiled SQL has no hardcoded raw table names (when provided)
+if (input.forbiddenLiteralTables && input.forbiddenLiteralTables.length > 0) {
+  const noHardcodeCheck = checkNoHardcodedTables(input);
+  checks.push(noHardcodeCheck);
+  if (!noHardcodeCheck.passed) {
+    return fail(noHardcodeCheck, checks);
+  }
+}
+
+return {
+  passed: true,
+  message:
+    "Great job! sources.yml is correctly configured, the model uses source() for all raw tables, and the compiled SQL resolves through the source layer.",
+  checks,
+};
+}
+
+function checkSourcesYaml(input: DbtGradeInput): CheckResult {
+  const yaml = input.sourcesYaml;
+
+  if (!/version:\s*2/.test(yaml)) {
+    return {
+      name: "sourcesYmlStructure",
+      passed: false,
+      message:
+        "Missing or incorrect 'version: 2' at the top of sources.yml.",
+    };
+  }
+
+  if (!/sources:/.test(yaml)) {
+    return {
+      name: "sourcesYmlStructure",
+      passed: false,
+      message: "Missing 'sources:' section in sources.yml.",
+    };
+  }
+
+  const sourceNameRegex = new RegExp(`name:\\s*${input.expectedSourceName}`);
+  if (!sourceNameRegex.test(yaml)) {
+    return {
+      name: "sourcesYmlStructure",
+      passed: false,
+      message: `Missing source named '${input.expectedSourceName}'. Add '- name: ${input.expectedSourceName}' under sources.`,
+    };
+  }
+
+  const tableNames = extractTableNamesFromYaml(yaml);
+  const missing = input.expectedTables.filter(
+    (t) => !tableNames.includes(t)
+  );
+  if (missing.length > 0) {
+    return {
+      name: "sourcesYmlStructure",
+      passed: false,
+      message: `Missing table(s) under source '${input.expectedSourceName}': ${missing.join(", ")}.`,
+    };
+  }
+
+  return { name: "sourcesYmlStructure", passed: true };
+}
+
+function extractTableNamesFromYaml(yaml: string): string[] {
+  const matches = yaml.match(/- \s*name:\s*(\w+)/g);
+  if (!matches) return [];
+  return matches
+    .map((m) => m.match(/name:\s*(\w+)/)?.[1])
+    .filter(Boolean) as string[];
+}
+
+function checkSourceUsage(input: DbtGradeInput): CheckResult {
+  const sql = input.modelSql;
+  const missing: string[] = [];
+
+  for (const table of input.expectedSourceRefs) {
+    const sourceRef = `source('${input.expectedSourceName}', '${table}')`;
+    if (!sql.includes(sourceRef)) {
+      missing.push(table);
+    }
+  }
+
+  if (missing.length > 0) {
+    const hint =
+      missing.length === 1
+        ? ` Replace the hardcoded table name with {{ source('${input.expectedSourceName}', '${missing[0]}') }}.`
+        : ` Replace hardcoded table names with {{ source('${input.expectedSourceName}', '<table>') }}.`;
+    return {
+      name: "sourceUsage",
+      passed: false,
+      message: `Model does not use source() for: ${missing.join(", ")}.${hint}`,
+    };
+  }
+
+  return { name: "sourceUsage", passed: true };
+}
+
+function checkNoHardcodedTables(input: DbtGradeInput): CheckResult {
+  const compiled = input.compiledSql;
+  const found: string[] = [];
+
+  for (const table of input.forbiddenLiteralTables) {
+    const regex = new RegExp(
+      `\\b${escapeRegex(table)}\\b`,
+      "i"
+    );
+    if (regex.test(compiled)) {
+      found.push(table);
+    }
+  }
+
+  if (found.length > 0) {
+    return {
+      name: "noHardcodedTables",
+      passed: false,
+      message: `Compiled SQL still references raw table name(s) directly: ${found.join(", ")}. All raw tables should be accessed through source().`,
+    };
+  }
+
+  return { name: "noHardcodedTables", passed: true };
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function gradeRows(input: GraderInput): GradeResult {
   const checks: CheckResult[] = [];
   const { actual, expected } = input;

@@ -1,21 +1,17 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
-import duckdbWasmMvp from "@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm";
-import duckdbWasmEh from "@duckdb/duckdb-wasm/dist/duckdb-eh.wasm";
-import duckdbWorkerMvp from "@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js";
-import duckdbWorkerEh from "@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js";
 import { registerExecutor, SqlExecutor } from "./sql-executor";
 
 let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
 
-const DUCKDB_BUNDLES: duckdb.DuckDBBundles = {
+const DUCKDB_BUNDLE_URLS: duckdb.DuckDBBundles = {
   mvp: {
-    mainModule: duckdbWasmMvp,
-    mainWorker: duckdbWorkerMvp,
+    mainModule: "/duckdb-wasm/duckdb-mvp.wasm",
+    mainWorker: "/duckdb-wasm/duckdb-browser-mvp.worker.js",
   },
   eh: {
-    mainModule: duckdbWasmEh,
-    mainWorker: duckdbWorkerEh,
+    mainModule: "/duckdb-wasm/duckdb-eh.wasm",
+    mainWorker: "/duckdb-wasm/duckdb-browser-eh.worker.js",
   },
 };
 
@@ -36,7 +32,7 @@ class WasmExecutor implements SqlExecutor {
 async function getConnection(): Promise<duckdb.AsyncDuckDBConnection> {
   if (conn) return conn;
 
-  const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES);
+  const bundle = await duckdb.selectBundle(DUCKDB_BUNDLE_URLS);
   const worker = new Worker(bundle.mainWorker!);
   const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
   db = new duckdb.AsyncDuckDB(logger, worker);

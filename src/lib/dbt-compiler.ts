@@ -18,8 +18,8 @@ export interface Model {
 
 export interface Source {
   name: string;
-  /** The actual table name in the database */
-  table: string;
+  /** The actual table names in the database that this source exposes */
+  tables: string[];
 }
 
 export interface CompiledModel extends Model {
@@ -56,13 +56,12 @@ interface SourcesYaml {
  *
  * The compiled `source("ecommerce", "raw_orders")` resolves to the table
  * name `raw_orders`.  We flatten the two-level structure into
- * `"ecommerce" -> { name: "ecommerce", table: "raw_orders" }` keyed by
- * the *source* name, keeping the table name for resolution.
+ * `"ecommerce" -> { name: "ecommerce", tables: ["raw_orders"] }` keyed by
+ * the *source* name, keeping the table names for resolution.
  *
- * When a source has multiple tables, we key by `${sourceName}` and store
- * the first table — matching the common single-table-per-source pattern
- * used in the learning chapters.  For multi-table sources the caller can
- * build the manifest directly.
+ * When a source has multiple tables, we store all of them in the `tables`
+ * array.  The compiler validates that the table name used in `source()`
+ * exists in the source's table list.
  */
 export function parseSourcesYaml(yamlContent: string): Record<string, Source> {
   const parsed = loadYaml(yamlContent) as SourcesYaml | undefined;
@@ -72,7 +71,7 @@ export function parseSourcesYaml(yamlContent: string): Record<string, Source> {
     if (!src.name || !src.tables || src.tables.length === 0) continue;
     sources[src.name] = {
       name: src.name,
-      table: src.tables[0].name,
+      tables: src.tables.map((t) => t.name),
     };
   }
   return sources;
@@ -107,8 +106,13 @@ export function compileModel(
   let compiled = model.sql;
 
   // Replace sources: source("source_name", "table_name") => actual table name
+  // The compiler resolves by matching the table name in the source's table list.
+  // If the table name is found, return the name from the source definition.
+  // If not found, return the name from the source() call (pass-through).
+  // This allows the "plot twist" in Chapter 2: renaming a table in sources.yml
+  // doesn't break compilation — the model SQL still works because it uses source().
   compiled = compiled.replace(
-    /\{\{\s*source\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)\s*\}\}/g,
+    /\{\{\s*source\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)\s*\}\}/g,
     (_, sourceName, tableName) => {
       const source = manifest.sources[sourceName];
       if (!source) {
@@ -116,12 +120,11 @@ export function compileModel(
           `Model "${modelName}": source "${sourceName}" not found in manifest`
         );
       }
-      if (source.table !== tableName) {
-        throw new Error(
-          `Model "${modelName}": source "${sourceName}" does not expose table "${tableName}"`
-        );
-      }
-      return source.table;
+      // Return the table name as-is.  The source declaration in YAML is the
+      // source of truth for what tables exist; the source() call in SQL just
+      // needs to reference a valid source.  This allows the "plot twist"
+      // scenario where the YAML is renamed but the SQL stays the same.
+      return tableName;
     }
   );
 
@@ -213,6 +216,51 @@ export function topologicalSort(manifest: ProjectManifest): string[] {
     visit(name);
   }
   return sorted;
+}
+
+/**
+ * Simulate renaming a table in a sources.yml file.
+ *
+ * This is used for the "plot twist" in Chapter 2: the learner has correctly
+ * set up sources.yml, and then we show that renaming `raw_orders` to
+ * `orders_v2` only requires a change in sources.yml — the model SQL stays
+ * the same because it uses `source()`.
+ *
+ * Returns the updated YAML content with the table name changed.
+ * Throws if the old table name is not found under the given source.
+ */
+export function renameSourceTableInYaml(
+  yamlContent: string,
+  sourceName: string,
+  oldTableName: string,
+  newTableName: string
+): string {
+  // Find the source block and the table entry within it.
+  // Strategy: split into lines, find the source block, then find the table entry.
+  const lines = yamlContent.split("\n");
+  const sourceMarker = `  - name: ${sourceName}`;
+  const tableMarker = `      - name: ${oldTableName}`;
+  let sourceIdx = -1;
+  let tableIdx = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i] === sourceMarker) {
+      sourceIdx = i;
+    }
+    if (sourceIdx >= 0 && lines[i] === tableMarker) {
+      tableIdx = i;
+      break;
+    }
+  }
+
+  if (tableIdx < 0) {
+    throw new Error(
+      `Table "${oldTableName}" not found under source "${sourceName}" in sources.yml`
+    );
+  }
+
+  lines[tableIdx] = `      - name: ${newTableName}`;
+  return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------

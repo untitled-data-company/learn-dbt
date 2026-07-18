@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { gradeRows, ColumnType } from "@/lib/grader";
+import { gradeRows, gradeDbtExercise, ColumnType } from "@/lib/grader";
 
 describe("gradeRows — column shape", () => {
   it("passes for identical rows", () => {
@@ -321,5 +321,140 @@ describe("gradeRows — reusability", () => {
     });
     expect(result.passed).toBe(false);
     expect(result.details).toBe("rowCount");
+  });
+});
+
+describe("gradeDbtExercise — dbt run success", () => {
+  it("passes when dbt run succeeds", () => {
+    const result = gradeDbtExercise({
+      sourcesYaml: "version: 2\nsources:\n  - name: shop\n    tables:\n      - name: raw_orders\n      - name: raw_products\n      - name: raw_customers",
+      modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
+      dbtRunSuccess: true,
+      expectedSourceName: "shop",
+      expectedTables: ["raw_orders", "raw_products", "raw_customers"],
+      expectedSourceRefs: ["raw_orders"],
+    });
+    expect(result.passed).toBe(true);
+  });
+
+  it("fails when dbt run fails", () => {
+    const result = gradeDbtExercise({
+      sourcesYaml: "version: 2\nsources:\n  - name: shop\n    tables:\n      - name: raw_orders",
+      modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
+      dbtRunSuccess: false,
+      expectedSourceName: "shop",
+      expectedTables: ["raw_orders"],
+      expectedSourceRefs: ["raw_orders"],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toBe("dbtRunSuccess");
+  });
+});
+
+describe("gradeDbtExercise — sources.yml structure", () => {
+  const passBase = {
+    modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
+    dbtRunSuccess: true,
+    expectedSourceName: "shop",
+    expectedTables: ["raw_orders", "raw_products", "raw_customers"],
+    expectedSourceRefs: ["raw_orders"],
+  };
+
+  it("fails on missing version", () => {
+    const result = gradeDbtExercise({
+      ...passBase,
+      sourcesYaml: "sources:\n  - name: shop\n    tables:\n      - name: raw_orders",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toBe("sourcesYmlStructure");
+    expect(result.message).toContain("version");
+  });
+
+  it("fails on missing sources section", () => {
+    const result = gradeDbtExercise({
+      ...passBase,
+      sourcesYaml: "version: 2\nother: true",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toBe("sourcesYmlStructure");
+    expect(result.message).toContain("sources");
+  });
+
+  it("fails on wrong source name", () => {
+    const result = gradeDbtExercise({
+      ...passBase,
+      sourcesYaml: "version: 2\nsources:\n  - name: wrong\n    tables:\n      - name: raw_orders",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toBe("sourcesYmlStructure");
+    expect(result.message).toContain("shop");
+  });
+
+  it("fails on missing tables", () => {
+    const result = gradeDbtExercise({
+      ...passBase,
+      sourcesYaml: "version: 2\nsources:\n  - name: shop\n    tables:\n      - name: raw_orders",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toBe("sourcesYmlStructure");
+    expect(result.message).toContain("raw_products");
+  });
+});
+
+describe("gradeDbtExercise — source() usage", () => {
+  const passBase = {
+    sourcesYaml: "version: 2\nsources:\n  - name: shop\n    tables:\n      - name: raw_orders\n      - name: raw_products",
+    dbtRunSuccess: true,
+    expectedSourceName: "shop",
+    expectedTables: ["raw_orders", "raw_products"],
+    expectedSourceRefs: ["raw_orders"],
+  };
+
+  it("fails when model does not use source() for expected table", () => {
+    const result = gradeDbtExercise({
+      ...passBase,
+      modelSql: "SELECT * FROM raw_orders",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toBe("sourceUsage");
+    expect(result.message).toContain("source()");
+  });
+
+  it("passes when model uses source() correctly", () => {
+    const result = gradeDbtExercise({
+      ...passBase,
+      modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
+    });
+    expect(result.passed).toBe(true);
+  });
+});
+
+describe("gradeDbtExercise — short-circuit ordering", () => {
+  it("stops at dbtRunSuccess before checking YAML", () => {
+    const result = gradeDbtExercise({
+      sourcesYaml: "invalid",
+      modelSql: "",
+      dbtRunSuccess: false,
+      expectedSourceName: "shop",
+      expectedTables: ["raw_orders"],
+      expectedSourceRefs: ["raw_orders"],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toBe("dbtRunSuccess");
+    expect(result.checks).toHaveLength(1);
+  });
+
+  it("stops at YAML before checking source usage", () => {
+    const result = gradeDbtExercise({
+      sourcesYaml: "version: 2\nother: true",
+      modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
+      dbtRunSuccess: true,
+      expectedSourceName: "shop",
+      expectedTables: ["raw_orders"],
+      expectedSourceRefs: ["raw_orders"],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.details).toBe("sourcesYmlStructure");
+    expect(result.checks).toHaveLength(2); // dbtRunSuccess + sourcesYmlStructure
   });
 });

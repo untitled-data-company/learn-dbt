@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SiteShell } from "@/components/SiteShell";
 
 export const metadata: Metadata = {
   title: "Learn dbt",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <SiteShell>{children}</SiteShell>
+      </body>
     </html>
   );
 }
