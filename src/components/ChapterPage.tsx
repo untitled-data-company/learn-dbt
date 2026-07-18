@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { getChapterBySlug, getNextChapter } from "@/lib/chapters";
-import type { CharacterCard } from "@/lib/chapters";
 import {
   getChapterStatus,
   isChapterUnlocked,
@@ -12,6 +11,7 @@ import {
 } from "@/lib/progress";
 import { useProgress } from "@/lib/use-progress";
 import { ChapterExerciseRunner } from "./ChapterExerciseRunner";
+import { StoryPanel } from "./StoryPanel";
 
 /**
  * ChapterPage — the split-pane chapter layout.
@@ -116,96 +116,19 @@ export function ChapterPage() {
       {/* Split-pane body — three zones */}
       <div className="flex flex-1 min-h-0">
         {/* ── Zone 1: Story panel (left) ── */}
-        <div className="w-1/2 overflow-y-auto p-6 border-r border-gray-200 bg-gray-50">
-          {/* Character cards */}
-          {chapter.characters.length > 0 && (
-            <section className="mb-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
-                Cast
-              </h2>
-              <div className="grid gap-3">
-                {chapter.characters.map((char) => (
-                  <CharacterCardDisplay key={char.name} character={char} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">
-              Story
-            </h2>
-            <p className="text-gray-800 leading-relaxed whitespace-pre-line">
-              {chapter.story}
-            </p>
-          </section>
-
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">
-              Concept
-            </h2>
-            <p className="text-gray-800 leading-relaxed whitespace-pre-line">
-              {chapter.concept}
-            </p>
-          </section>
-
-          {chapter.tables && chapter.tables.length > 0 && (
-            <section className="mb-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">
-                Tables
-              </h2>
-              <ul className="space-y-1">
-                {chapter.tables.map((table) => (
-                  <li
-                    key={table}
-                    className="font-mono text-sm text-gray-700 bg-white border border-gray-200 rounded px-3 py-1.5"
-                  >
-                    {table}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {chapter.aiPrompt && (
-            <section className="mb-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">
-                AI prompt to try
-              </h2>
-              <blockquote className="border-l-4 border-gray-300 pl-4 text-gray-600 italic">
-                {chapter.aiPrompt}
-              </blockquote>
-            </section>
-          )}
-
-          {/* Completion / next chapter navigation */}
-          {(completed || justCompleted) && nextChapter && (
-            <section className="mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-800 font-medium mb-3">
-                Chapter {chapter.id} complete!
-              </p>
-              <Link
-                href={`/chapters/${nextChapter.slug}`}
-                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 transition-colors"
-              >
-                Next: Chapter {nextChapter.id} &rarr;
-              </Link>
-            </section>
-          )}
-
-          {(completed || justCompleted) && !nextChapter && (
-            <section className="mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-800 font-medium">
-                You finished the last chapter! Module 1 is complete.
-              </p>
-              <Link
-                href="/"
-                className="text-green-700 hover:underline mt-2 inline-block"
-              >
-                Back to home
-              </Link>
-            </section>
-          )}
+        <div className="w-1/2 overflow-y-auto border-r border-gray-200 bg-gray-50">
+          <StoryPanel
+            chapterId={chapter.id}
+            chapterTitle={chapter.title}
+            story={chapter.story}
+            concept={chapter.concept}
+            characters={chapter.characters}
+            tables={chapter.tables}
+            aiPrompt={chapter.aiPrompt}
+            completed={completed}
+            justCompleted={justCompleted}
+            nextChapter={nextChapter}
+          />
         </div>
 
         {/* ── Zones 2+3: Editor (right top) + Verification (right bottom) ── */}
@@ -251,23 +174,5 @@ export function ChapterPage() {
         )}
       </div>
     </main>
-  );
-}
-
-/**
- * CharacterCardDisplay — a compact card for a story character.
- * Shows name, role, and a short description so the learner knows who's who.
- */
-function CharacterCardDisplay({ character }: { character: CharacterCard }) {
-  return (
-    <div className="border border-gray-200 rounded-lg p-3 bg-white">
-      <div className="flex items-baseline gap-2">
-        <h3 className="font-semibold text-gray-900 text-sm">
-          {character.name}
-        </h3>
-        <span className="text-xs text-gray-400">{character.role}</span>
-      </div>
-      <p className="text-xs text-gray-600 mt-1">{character.description}</p>
-    </div>
   );
 }
