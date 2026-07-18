@@ -53,7 +53,7 @@ describe("dbt runner", () => {
 
   it("materialises a view model as CREATE OR REPLACE VIEW", async () => {
     const viewManifest: ProjectManifest = {
-      sources: { ecommerce: { name: "ecommerce", table: "raw_orders" } },
+      sources: { ecommerce: { name: "ecommerce", tables: ["raw_orders"] } },
       models: {
         stg_orders: {
           name: "stg_orders",
@@ -70,7 +70,7 @@ describe("dbt runner", () => {
   it("switches materialization from table to view on re-run", async () => {
     // First run: table materialization (default)
     const tableManifest: ProjectManifest = {
-      sources: { ecommerce: { name: "ecommerce", table: "raw_orders" } },
+      sources: { ecommerce: { name: "ecommerce", tables: ["raw_orders"] } },
       models: {
         stg_orders: {
           name: "stg_orders",
@@ -83,7 +83,7 @@ describe("dbt runner", () => {
 
     // Second run: same model, now a view — must drop the table first
     const viewManifest: ProjectManifest = {
-      sources: { ecommerce: { name: "ecommerce", table: "raw_orders" } },
+      sources: { ecommerce: { name: "ecommerce", tables: ["raw_orders"] } },
       models: {
         stg_orders: {
           name: "stg_orders",
@@ -129,7 +129,7 @@ describe("dbt runner", () => {
 
   it("continues running after a model error (dbt default)", async () => {
     const badManifest: ProjectManifest = {
-      sources: { ecommerce: { name: "ecommerce", table: "raw_orders" } },
+      sources: { ecommerce: { name: "ecommerce", tables: ["raw_orders"] } },
       models: {
         good: {
           name: "good",
@@ -148,7 +148,7 @@ describe("dbt runner", () => {
 
   it("handles a 3-model dependency chain in correct order", async () => {
     const chain: ProjectManifest = {
-      sources: { ecommerce: { name: "ecommerce", table: "raw_orders" } },
+      sources: { ecommerce: { name: "ecommerce", tables: ["raw_orders"] } },
       models: {
         final: {
           name: "final",

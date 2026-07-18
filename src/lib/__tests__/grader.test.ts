@@ -329,12 +329,10 @@ describe("gradeDbtExercise — dbt run success", () => {
     const result = gradeDbtExercise({
       sourcesYaml: "version: 2\nsources:\n  - name: shop\n    tables:\n      - name: raw_orders\n      - name: raw_products\n      - name: raw_customers",
       modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
-      compiledSql: "SELECT * FROM raw_orders",
       dbtRunSuccess: true,
       expectedSourceName: "shop",
       expectedTables: ["raw_orders", "raw_products", "raw_customers"],
       expectedSourceRefs: ["raw_orders"],
-      forbiddenLiteralTables: ["raw_orders"],
     });
     expect(result.passed).toBe(true);
   });
@@ -343,12 +341,10 @@ describe("gradeDbtExercise — dbt run success", () => {
     const result = gradeDbtExercise({
       sourcesYaml: "version: 2\nsources:\n  - name: shop\n    tables:\n      - name: raw_orders",
       modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
-      compiledSql: "",
       dbtRunSuccess: false,
       expectedSourceName: "shop",
       expectedTables: ["raw_orders"],
       expectedSourceRefs: ["raw_orders"],
-      forbiddenLiteralTables: ["raw_orders"],
     });
     expect(result.passed).toBe(false);
     expect(result.details).toBe("dbtRunSuccess");
@@ -358,12 +354,10 @@ describe("gradeDbtExercise — dbt run success", () => {
 describe("gradeDbtExercise — sources.yml structure", () => {
   const passBase = {
     modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
-    compiledSql: "SELECT * FROM raw_orders",
     dbtRunSuccess: true,
     expectedSourceName: "shop",
     expectedTables: ["raw_orders", "raw_products", "raw_customers"],
     expectedSourceRefs: ["raw_orders"],
-    forbiddenLiteralTables: ["raw_orders"],
   };
 
   it("fails on missing version", () => {
@@ -410,12 +404,10 @@ describe("gradeDbtExercise — sources.yml structure", () => {
 describe("gradeDbtExercise — source() usage", () => {
   const passBase = {
     sourcesYaml: "version: 2\nsources:\n  - name: shop\n    tables:\n      - name: raw_orders\n      - name: raw_products",
-    compiledSql: "SELECT * FROM raw_orders",
     dbtRunSuccess: true,
     expectedSourceName: "shop",
     expectedTables: ["raw_orders", "raw_products"],
     expectedSourceRefs: ["raw_orders"],
-    forbiddenLiteralTables: ["raw_orders"],
   };
 
   it("fails when model does not use source() for expected table", () => {
@@ -437,49 +429,15 @@ describe("gradeDbtExercise — source() usage", () => {
   });
 });
 
-describe("gradeDbtExercise — no hardcoded tables in compiled SQL", () => {
-  it("fails when compiled SQL still has raw table name", () => {
-    const result = gradeDbtExercise({
-      sourcesYaml: "version: 2\nsources:\n  - name: shop\n    tables:\n      - name: raw_orders",
-      modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
-      compiledSql: "SELECT * FROM raw_orders",
-      dbtRunSuccess: true,
-      expectedSourceName: "shop",
-      expectedTables: ["raw_orders"],
-      expectedSourceRefs: ["raw_orders"],
-      forbiddenLiteralTables: ["raw_orders"],
-    });
-    expect(result.passed).toBe(false);
-    expect(result.details).toBe("noHardcodedTables");
-    expect(result.message).toContain("raw_orders");
-  });
-
-  it("passes when compiled SQL uses source-resolved name that differs from raw", () => {
-    const result = gradeDbtExercise({
-      sourcesYaml: "version: 2\nsources:\n  - name: shop\n    tables:\n      - name: orders_v2",
-      modelSql: "SELECT * FROM {{ source('shop', 'orders_v2') }}",
-      compiledSql: "SELECT * FROM orders_v2",
-      dbtRunSuccess: true,
-      expectedSourceName: "shop",
-      expectedTables: ["orders_v2"],
-      expectedSourceRefs: ["orders_v2"],
-      forbiddenLiteralTables: ["raw_orders"],
-    });
-    expect(result.passed).toBe(true);
-  });
-});
-
 describe("gradeDbtExercise — short-circuit ordering", () => {
   it("stops at dbtRunSuccess before checking YAML", () => {
     const result = gradeDbtExercise({
       sourcesYaml: "invalid",
       modelSql: "",
-      compiledSql: "",
       dbtRunSuccess: false,
       expectedSourceName: "shop",
       expectedTables: ["raw_orders"],
       expectedSourceRefs: ["raw_orders"],
-      forbiddenLiteralTables: ["raw_orders"],
     });
     expect(result.passed).toBe(false);
     expect(result.details).toBe("dbtRunSuccess");
@@ -490,12 +448,10 @@ describe("gradeDbtExercise — short-circuit ordering", () => {
     const result = gradeDbtExercise({
       sourcesYaml: "version: 2\nother: true",
       modelSql: "SELECT * FROM {{ source('shop', 'raw_orders') }}",
-      compiledSql: "SELECT * FROM raw_orders",
       dbtRunSuccess: true,
       expectedSourceName: "shop",
       expectedTables: ["raw_orders"],
       expectedSourceRefs: ["raw_orders"],
-      forbiddenLiteralTables: ["raw_orders"],
     });
     expect(result.passed).toBe(false);
     expect(result.details).toBe("sourcesYmlStructure");

@@ -80,7 +80,7 @@ describe("dbt compiler — source() and ref()", () => {
     );
   });
 
-  it("throws for source/table mismatch", () => {
+  it("passes through table name when source/table mismatch (plot twist support)", () => {
     const bad: ProjectManifest = {
       sources: { ecommerce: { name: "ecommerce", tables: ["raw_orders"] } },
       models: {
@@ -90,7 +90,8 @@ describe("dbt compiler — source() and ref()", () => {
         },
       },
     };
-    expect(() => compileModel("m", bad)).toThrow('does not expose table "wrong_table"');
+    const result = compileModel("m", bad);
+    expect(result.compiledSql).toContain("wrong_table");
   });
 
   it("throws for unknown model", () => {

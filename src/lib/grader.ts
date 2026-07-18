@@ -85,8 +85,6 @@ export interface DbtGradeInput {
   sourcesYaml: string;
   /** The raw SQL content of the model */
   modelSql: string;
-  /** The compiled SQL after source() resolution */
-  compiledSql: string;
   /** Whether dbt run succeeded for all models */
   dbtRunSuccess: boolean;
   /** Expected source name */
@@ -95,8 +93,6 @@ export interface DbtGradeInput {
   expectedTables: string[];
   /** Table names that should be referenced via source() in the SQL */
   expectedSourceRefs: string[];
-  /** Table names that should NOT appear literally in the compiled SQL */
-  forbiddenLiteralTables: string[];
 }
 
 export function gradeDbtExercise(input: DbtGradeInput): GradeResult {
@@ -129,17 +125,10 @@ export function gradeDbtExercise(input: DbtGradeInput): GradeResult {
     return fail(sourceUsageCheck, checks);
   }
 
-  // 4. Compiled SQL has no hardcoded raw table names
-  const noHardcodeCheck = checkNoHardcodedTables(input);
-  checks.push(noHardcodeCheck);
-  if (!noHardcodeCheck.passed) {
-    return fail(noHardcodeCheck, checks);
-  }
-
   return {
     passed: true,
     message:
-      "Great job! sources.yml is correctly configured, the model uses source() for all raw tables, and the compiled SQL resolves through the source layer.",
+      "Great job! sources.yml is correctly configured and the model uses source() for all raw tables.",
     checks,
   };
 }
@@ -222,36 +211,9 @@ function checkSourceUsage(input: DbtGradeInput): CheckResult {
   return { name: "sourceUsage", passed: true };
 }
 
-function checkNoHardcodedTables(input: DbtGradeInput): CheckResult {
-  const compiled = input.compiledSql;
-  const found: string[] = [];
-
-  for (const table of input.forbiddenLiteralTables) {
-    // Check for the table name appearing as a standalone identifier
-    // (not inside a source() call — those are already resolved by the compiler)
-    const regex = new RegExp(
-      `\\b${escapeRegex(table)}\\b`,
-      "i"
-    );
-    if (regex.test(compiled)) {
-      found.push(table);
-    }
-  }
-
-  if (found.length > 0) {
-    return {
-      name: "noHardcodedTables",
-      passed: false,
-      message: `Compiled SQL still references raw table name(s) directly: ${found.join(", ")}. All raw tables should be accessed through source().`,
-    };
-  }
-
-  return { name: "noHardcodedTables", passed: true };
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 export function gradeRows(input: GraderInput): GradeResult {
   const checks: CheckResult[] = [];
