@@ -135,6 +135,13 @@ ORDER BY 2 DESC, 3 DESC`,
       language: "sql",
       requiredColumns: ["category", "order_date", "total_revenue"],
       seedTables: ["raw_orders", "raw_products", "raw_customers"],
+      expectedRows: [
+        { category: "gadgets", order_date: "2023-04-04", total_revenue: 49.95 },
+        { category: "widgets", order_date: "2023-04-03", total_revenue: 29.99 },
+        { category: "gadgets", order_date: "2023-04-02", total_revenue: 19.99 },
+        { category: "gadgets", order_date: "2023-04-01", total_revenue: 19.98 },
+      ],
+      orderMatters: true,
     },
   },
   {

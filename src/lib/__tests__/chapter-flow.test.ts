@@ -38,6 +38,18 @@ describe("chapter flow — chapter 0 SQL exercise", () => {
     });
     expect(grade.checks.find((c) => c.name === "columns")?.passed).toBe(true);
   });
+  it("full grading of chapter 0 seed SQL passes all checks", async () => {
+    const ch = getChapterById(0);
+    const result = await runSql(ch!.exercise!.initialSql!);
+    const grade = gradeRows({
+      actual: result.rows,
+      expected: ch!.exercise!.expectedRows!,
+      requiredColumns: ch!.exercise!.requiredColumns,
+      orderMatters: ch!.exercise!.orderMatters,
+    });
+    expect(grade.passed).toBe(true);
+    expect(grade.checks.every((c) => c.passed)).toBe(true);
+  });
 });
 
 describe("chapter flow — progress gating", () => {
