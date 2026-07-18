@@ -10,7 +10,7 @@ describe("dbt runner", () => {
 
   const manifest: ProjectManifest = {
     sources: {
-      ecommerce: { name: "ecommerce", table: "raw_orders" },
+      ecommerce: { name: "ecommerce", tables: ["raw_orders"] },
     },
     models: {
       stg_orders: {

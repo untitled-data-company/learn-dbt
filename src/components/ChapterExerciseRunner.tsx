@@ -5,10 +5,19 @@ import { CodeEditor, type EditorLanguage } from "@/components/CodeEditor";
 import { ResultsTable } from "@/components/ResultsTable";
 import { runSql } from "@/lib/runner";
 import type { SqlResult } from "@/lib/runner";
-import { gradeRows, type GradeResult } from "@/lib/grader";
+import {
+  gradeRows,
+  gradeDbtExercise,
+  type GradeResult,
+  type DbtGradeInput,
+} from "@/lib/grader";
 import { loadSeedData } from "@/lib/duckdb";
 import type { ChapterExercise, ExerciseFile } from "@/lib/chapters";
-import { parseSourcesYaml, type ProjectManifest } from "@/lib/dbt-compiler";
+import {
+  parseSourcesYaml,
+  renameSourceTableInYaml,
+  type ProjectManifest,
+} from "@/lib/dbt-compiler";
 import { dbtRun, type DbtRunResults } from "@/lib/dbt-runner";
 
 interface ChapterExerciseRunnerProps {
@@ -23,9 +32,14 @@ interface ChapterExerciseRunnerProps {
  *   1. SQL mode (default): single-file editor, runSql, gradeRows pipeline.
  *   2. dbt run mode (useDbtRun=true): multi-file editor (sources.yml + .sql),
  *      builds a ProjectManifest from the YAML and SQL, runs dbtRun, shows
- *      compilation results.
+ *      compilation results, and grades with gradeDbtExercise for detailed
+ *      checks (sources.yml structure, source() usage, no hardcoded tables).
  *   3. YAML-only mode (language="yaml"): single-file YAML editor with
  *      structure validation (legacy).
+ *
+ * After a successful dbt run, a "Plot twist" button appears that simulates
+ * renaming raw_orders to orders_v2 — showing that only sources.yml needs
+ * to change when using source().
  *
  * Calls onComplete when the grader reports a pass.
  */
@@ -40,7 +54,6 @@ export function ChapterExerciseRunner({
     exercise.expectedRows !== undefined || exercise.minRows !== undefined;
 
   // ── Multi-file state ──
-  // For multi-file exercises, track content per file name.
   const [fileContents, setFileContents] = useState<Record<string, string>>(
     () => {
       if (exercise.files) {
@@ -63,6 +76,22 @@ export function ChapterExerciseRunner({
   const [dbReady, setDbReady] = useState(false);
   const [dbLoaded, setDbLoaded] = useState(false);
   const [resetCounter, setResetCounter] = useState(0);
+
+  // ── Plot twist state ──
+  const [plotTwistActive, setPlotTwistActive] = useState(false);
+  const [plotTwistYaml, setPlotTwistYaml] = useState<string | null>(null);
+  const [plotTwistCompiledSql, setPlotTwistCompiledSql] = useState<
+    string | null
+  >(null);
+  const [plotTwistGrade, setPlotTwistGrade] = useState<GradeResult | null>(
+    null,
+  );
+  const [plotTwistLoading, setPlotTwistLoading] = useState(false);
+
+  // Store the last successful manifest for plot twist replay
+  const lastManifestRef = useRef<ProjectManifest | null>(null);
+  const lastYamlContentRef = useRef<string | null>(null);
+  const lastSqlContentRef = useRef<string | null>(null);
 
   // ── Seed DuckDB on mount ──
   useEffect(() => {
@@ -106,7 +135,6 @@ export function ChapterExerciseRunner({
   // ── Get the active SQL content (for single-file mode) ──
   const getActiveSql = useCallback((): string => {
     if (exercise.files) {
-      // In multi-file mode, find the SQL file
       const sqlFile = exercise.files.find(
         (f) => f.language === "sql" || f.language === "sql-jinja",
       );
@@ -160,6 +188,10 @@ export function ChapterExerciseRunner({
     setGrade(null);
     setResult(null);
     setDbtResults(null);
+    setPlotTwistActive(false);
+    setPlotTwistYaml(null);
+    setPlotTwistCompiledSql(null);
+    setPlotTwistGrade(null);
 
     // Find the YAML file (sources.yml) and the SQL model file
     const yamlFile = exercise.files.find((f) => f.language === "yaml");
@@ -184,7 +216,9 @@ export function ChapterExerciseRunner({
     const sources = parseSourcesYaml(yamlContent);
 
     // Build the model name from the SQL filename (strip .sql extension)
-    const modelName = sqlFile.fileName.replace(/\.sql$/, "").split("/").pop() ?? "daily_revenue";
+    const modelName =
+      sqlFile.fileName.replace(/\.sql$/, "").split("/").pop() ??
+      "daily_revenue";
 
     // Build the manifest
     const manifest: ProjectManifest = {
@@ -201,34 +235,100 @@ export function ChapterExerciseRunner({
     const results = await dbtRun(manifest);
     setDbtResults(results);
 
-    // Grade: all models must succeed
+    // Store for plot twist
+    lastManifestRef.current = manifest;
+    lastYamlContentRef.current = yamlContent;
+    lastSqlContentRef.current = sqlContent;
+
+    // Grade with detailed checks
     const allSuccess = results.runs.every((r) => r.status === "success");
-    if (allSuccess) {
-      setGrade({
-        passed: true,
-        message: `dbt run completed successfully. ${results.runs.length} model(s) materialized.`,
-        checks: results.runs.map((r) => ({
-          name: r.modelName,
-          passed: true,
-          message: `Compiled: ${r.compiledSql?.slice(0, 80)}...`,
-        })),
-      });
-      if (onComplete) onComplete();
-    } else {
-      const failed = results.runs.find((r) => r.status === "error");
-      setGrade({
-        passed: false,
-        message: `dbt run failed: ${failed?.error ?? "Unknown error"}`,
-        details: "dbtRunError",
-        checks: results.runs.map((r) => ({
-          name: r.modelName,
-          passed: r.status === "success",
-          message: r.error,
-        })),
-      });
+    const compiledSql = results.runs[0]?.compiledSql ?? "";
+
+    const gradeInput: DbtGradeInput = {
+      sourcesYaml: yamlContent,
+      modelSql: sqlContent,
+      compiledSql,
+      dbtRunSuccess: allSuccess,
+      expectedSourceName: "shop",
+      expectedTables: ["raw_orders", "raw_products", "raw_customers"],
+      expectedSourceRefs: ["raw_orders", "raw_products"],
+      forbiddenLiteralTables: ["raw_orders", "raw_products"],
+    };
+
+    const gradeResult = gradeDbtExercise(gradeInput);
+    setGrade(gradeResult);
+
+    if (gradeResult.passed && onComplete) {
+      onComplete();
     }
+
     setLoading(false);
   }, [exercise.files, fileContents, onComplete]);
+
+  // ── Plot twist: rename raw_orders to orders_v2 ──
+  const handlePlotTwist = useCallback(async () => {
+    if (!lastYamlContentRef.current || !lastSqlContentRef.current) return;
+
+    setPlotTwistLoading(true);
+    setPlotTwistGrade(null);
+
+    try {
+      // Rename raw_orders to orders_v2 in the YAML
+      const newYaml = renameSourceTableInYaml(
+        lastYamlContentRef.current,
+        "shop",
+        "raw_orders",
+        "orders_v2",
+      );
+      setPlotTwistYaml(newYaml);
+
+      // Re-parse and re-run with the renamed YAML
+      const sources = parseSourcesYaml(newYaml);
+      const modelName = "daily_revenue";
+      const manifest: ProjectManifest = {
+        sources,
+        models: {
+          [modelName]: {
+            name: modelName,
+            sql: lastSqlContentRef.current,
+          },
+        },
+      };
+
+      const results = await dbtRun(manifest);
+      const allSuccess = results.runs.every((r) => r.status === "success");
+      const compiledSql = results.runs[0]?.compiledSql ?? "";
+      setPlotTwistCompiledSql(compiledSql);
+
+      // Grade the renamed version — the compiled SQL should now reference
+      // orders_v2 instead of raw_orders, but the model SQL didn't change
+      const gradeInput: DbtGradeInput = {
+        sourcesYaml: newYaml,
+        modelSql: lastSqlContentRef.current,
+        compiledSql,
+        dbtRunSuccess: allSuccess,
+        expectedSourceName: "shop",
+        expectedTables: ["orders_v2", "raw_products", "raw_customers"],
+        expectedSourceRefs: ["orders_v2", "raw_products"],
+        forbiddenLiteralTables: ["raw_orders", "raw_products"],
+      };
+
+      const gradeResult = gradeDbtExercise(gradeInput);
+      setPlotTwistGrade(gradeResult);
+      setPlotTwistActive(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setPlotTwistGrade({
+        passed: false,
+        message: `Plot twist failed: ${message}`,
+        details: "plotTwistError",
+        checks: [],
+      });
+      setPlotTwistActive(true);
+    }
+
+    setPlotTwistLoading(false);
+  }, []);
 
   // ── YAML validation (legacy single-file mode) ──
   const handleValidateYaml = useCallback(() => {
@@ -253,6 +353,13 @@ export function ChapterExerciseRunner({
     setResult(null);
     setGrade(null);
     setDbtResults(null);
+    setPlotTwistActive(false);
+    setPlotTwistYaml(null);
+    setPlotTwistCompiledSql(null);
+    setPlotTwistGrade(null);
+    lastManifestRef.current = null;
+    lastYamlContentRef.current = null;
+    lastSqlContentRef.current = null;
     setResetCounter((c) => c + 1);
   }, [exercise]);
 
@@ -391,6 +498,70 @@ export function ChapterExerciseRunner({
                     </li>
                   ))}
                 </ul>
+              )}
+            </div>
+          )}
+
+          {/* Plot twist button (shown after passing grade) */}
+          {isDbtRun && grade?.passed && !plotTwistActive && (
+            <button
+              onClick={handlePlotTwist}
+              disabled={plotTwistLoading}
+              className="mt-3 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:bg-gray-400 transition-colors"
+            >
+              {plotTwistLoading ? "Running..." : "Show plot twist"}
+            </button>
+          )}
+
+          {/* Plot twist results */}
+          {isDbtRun && plotTwistActive && (
+            <div className="mt-3 border border-amber-300 rounded p-3 bg-amber-50">
+              <h4 className="font-semibold text-sm text-amber-800 mb-2">
+                Plot twist: raw_orders renamed to orders_v2
+              </h4>
+              <p className="text-xs text-amber-700 mb-2">
+                Giulia was right! The ingestion team renamed{" "}
+                <code className="bg-amber-100 px-1 rounded">raw_orders</code> to{" "}
+                <code className="bg-amber-100 px-1 rounded">orders_v2</code>.
+                Because the model uses <code>source()</code>, only the YAML
+                declaration needs to change — the SQL stays the same.
+              </p>
+
+              {plotTwistYaml && (
+                <div className="mb-2">
+                  <span className="text-xs font-semibold text-amber-700">
+                    Updated sources.yml:
+                  </span>
+                  <pre className="text-xs text-amber-800 bg-amber-100 p-2 rounded mt-1 overflow-x-auto">
+                    {plotTwistYaml}
+                  </pre>
+                </div>
+              )}
+
+              {plotTwistCompiledSql && (
+                <div className="mb-2">
+                  <span className="text-xs font-semibold text-amber-700">
+                    Compiled SQL (still works, now references orders_v2):
+                  </span>
+                  <pre className="text-xs text-amber-800 bg-amber-100 p-2 rounded mt-1 overflow-x-auto">
+                    {plotTwistCompiledSql}
+                  </pre>
+                </div>
+              )}
+
+              {plotTwistGrade && (
+                <div
+                  className={`mt-2 text-xs border rounded p-2 ${
+                    plotTwistGrade.passed
+                      ? "text-green-700 bg-green-50 border-green-200"
+                      : "text-red-700 bg-red-50 border-red-200"
+                  }`}
+                >
+                  <strong>
+                    {plotTwistGrade.passed ? "PASS" : "FAIL"}
+                  </strong>{" "}
+                  — {plotTwistGrade.message}
+                </div>
               )}
             </div>
           )}

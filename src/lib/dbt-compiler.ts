@@ -18,8 +18,8 @@ export interface Model {
 
 export interface Source {
   name: string;
-  /** The actual table name in the database */
-  table: string;
+  /** The actual table names in the database that this source exposes */
+  tables: string[];
 }
 
 export interface CompiledModel extends Model {
@@ -72,7 +72,7 @@ export function parseSourcesYaml(yamlContent: string): Record<string, Source> {
     if (!src.name || !src.tables || src.tables.length === 0) continue;
     sources[src.name] = {
       name: src.name,
-      table: src.tables[0].name,
+      tables: src.tables.map((t) => t.name),
     };
   }
   return sources;
@@ -116,12 +116,12 @@ export function compileModel(
           `Model "${modelName}": source "${sourceName}" not found in manifest`
         );
       }
-      if (source.table !== tableName) {
+      if (!source.tables.includes(tableName)) {
         throw new Error(
           `Model "${modelName}": source "${sourceName}" does not expose table "${tableName}"`
         );
       }
-      return source.table;
+      return tableName;
     }
   );
 
@@ -213,6 +213,46 @@ export function topologicalSort(manifest: ProjectManifest): string[] {
     visit(name);
   }
   return sorted;
+}
+
+/**
+ * Simulate renaming a table in a sources.yml file.
+ *
+ * This is used for the "plot twist" in Chapter 2: the learner has correctly
+ * set up sources.yml, and then we show that renaming `raw_orders` to
+ * `orders_v2` only requires a change in sources.yml — the model SQL stays
+ * the same because it uses `source()`.
+ *
+ * Returns the updated YAML content with the table name changed.
+ * Throws if the old table name is not found under the given source.
+ */
+export function renameSourceTableInYaml(
+  yamlContent: string,
+  sourceName: string,
+  oldTableName: string,
+  newTableName: string
+): string {
+  // Find the source block and the table entry within it
+  const sourceBlockRegex = new RegExp(
+    `(  - name: ${escapeRegexForYaml(sourceName)}\\n(?:[ ]{2,}.*\\n)*?    tables:\\n(?:[ ]{4,}.*\\n)*?)(      - name: )${escapeRegexForYaml(oldTableName)}(\\n)`,
+    "m"
+  );
+
+  const match = yamlContent.match(sourceBlockRegex);
+  if (!match) {
+    throw new Error(
+      `Table "${oldTableName}" not found under source "${sourceName}" in sources.yml`
+    );
+  }
+
+  return yamlContent.replace(
+    sourceBlockRegex,
+    `$1$2${newTableName}$3`
+  );
+}
+
+function escapeRegexForYaml(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // ---------------------------------------------------------------------------

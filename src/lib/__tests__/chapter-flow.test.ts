@@ -1,10 +1,16 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { setupTestExecutor } from "./setup";
 import { runSql } from "@/lib/runner";
-import { gradeRows } from "@/lib/grader";
+import { gradeRows, gradeDbtExercise } from "@/lib/grader";
 import { getChapterById } from "@/lib/chapters";
 import { completeChapter, isChapterUnlocked, getChapterStatus } from "@/lib/progress";
 import type { ProgressMap } from "@/lib/progress";
+import {
+  parseSourcesYaml,
+  renameSourceTableInYaml,
+  type ProjectManifest,
+} from "@/lib/dbt-compiler";
+import { dbtRun } from "@/lib/dbt-runner";
 
 describe("chapter flow — chapter 0 SQL exercise", () => {
   beforeAll(async () => { await setupTestExecutor(); });
@@ -75,5 +81,187 @@ describe("chapter flow — YAML validation (chapter 2)", () => {
     expect(sql).toContain("source('shop', 'raw_orders')");
     expect(sql).toContain("source('shop', 'raw_products')");
     expect(sql).not.toContain("raw_orders o");
+  });
+});
+
+describe("chapter flow — chapter 2 dbt run + grading", () => {
+  beforeAll(async () => { await setupTestExecutor(); });
+
+  it("dbt run succeeds with chapter 2 sources.yml and daily_revenue.sql", async () => {
+    const ch = getChapterById(2)!;
+    const yamlContent = ch.exercise!.files![0].initialSql!;
+    const sqlContent = ch.exercise!.files![1].initialSql!;
+
+    const sources = parseSourcesYaml(yamlContent);
+    const manifest: ProjectManifest = {
+      sources,
+      models: {
+        daily_revenue: { name: "daily_revenue", sql: sqlContent },
+      },
+    };
+
+    const results = await dbtRun(manifest);
+    expect(results.error).toBeUndefined();
+    expect(results.runs.every((r) => r.status === "success")).toBe(true);
+  });
+
+  it("gradeDbtExercise passes with chapter 2 initial content", async () => {
+    const ch = getChapterById(2)!;
+    const yamlContent = ch.exercise!.files![0].initialSql!;
+    const sqlContent = ch.exercise!.files![1].initialSql!;
+
+    const sources = parseSourcesYaml(yamlContent);
+    const manifest: ProjectManifest = {
+      sources,
+      models: {
+        daily_revenue: { name: "daily_revenue", sql: sqlContent },
+      },
+    };
+
+    const results = await dbtRun(manifest);
+    const compiledSql = results.runs[0]?.compiledSql ?? "";
+    const allSuccess = results.runs.every((r) => r.status === "success");
+
+    const grade = gradeDbtExercise({
+      sourcesYaml: yamlContent,
+      modelSql: sqlContent,
+      compiledSql,
+      dbtRunSuccess: allSuccess,
+      expectedSourceName: "shop",
+      expectedTables: ["raw_orders", "raw_products", "raw_customers"],
+      expectedSourceRefs: ["raw_orders", "raw_products"],
+      forbiddenLiteralTables: ["raw_orders", "raw_products"],
+    });
+
+    expect(grade.passed).toBe(true);
+    expect(grade.checks).toHaveLength(4);
+    expect(grade.checks.every((c) => c.passed)).toBe(true);
+  });
+
+  it("gradeDbtExercise fails when source() is missing from SQL", async () => {
+    const ch = getChapterById(2)!;
+    const yamlContent = ch.exercise!.files![0].initialSql!;
+    // SQL without source() — hardcoded table names
+    const badSql = `SELECT * FROM raw_orders o
+JOIN raw_products p ON o.product_id = p.product_id`;
+
+    const sources = parseSourcesYaml(yamlContent);
+    const manifest: ProjectManifest = {
+      sources,
+      models: {
+        daily_revenue: { name: "daily_revenue", sql: badSql },
+      },
+    };
+
+    const results = await dbtRun(manifest);
+    const compiledSql = results.runs[0]?.compiledSql ?? "";
+    const allSuccess = results.runs.every((r) => r.status === "success");
+
+    const grade = gradeDbtExercise({
+      sourcesYaml: yamlContent,
+      modelSql: badSql,
+      compiledSql,
+      dbtRunSuccess: allSuccess,
+      expectedSourceName: "shop",
+      expectedTables: ["raw_orders", "raw_products", "raw_customers"],
+      expectedSourceRefs: ["raw_orders", "raw_products"],
+      forbiddenLiteralTables: ["raw_orders", "raw_products"],
+    });
+
+    expect(grade.passed).toBe(false);
+    expect(grade.details).toBe("sourceUsage");
+  });
+});
+
+describe("chapter flow — chapter 2 plot twist (rename simulation)", () => {
+  beforeAll(async () => { await setupTestExecutor(); });
+
+  it("renameSourceTableInYaml changes raw_orders to orders_v2", () => {
+    const ch = getChapterById(2)!;
+    const yamlContent = ch.exercise!.files![0].initialSql!;
+    const result = renameSourceTableInYaml(yamlContent, "shop", "raw_orders", "orders_v2");
+    expect(result).toContain("name: orders_v2");
+    expect(result).not.toContain("name: raw_orders");
+    expect(result).toContain("name: raw_products");
+    expect(result).toContain("name: raw_customers");
+  });
+
+  it("dbt run still succeeds after rename (only YAML changed)", async () => {
+    const ch = getChapterById(2)!;
+    const yamlContent = ch.exercise!.files![0].initialSql!;
+    const sqlContent = ch.exercise!.files![1].initialSql!;
+
+    // Simulate the rename
+    const newYaml = renameSourceTableInYaml(yamlContent, "shop", "raw_orders", "orders_v2");
+
+    // Re-run with renamed YAML — SQL stays the same
+    const sources = parseSourcesYaml(newYaml);
+    const manifest: ProjectManifest = {
+      sources,
+      models: {
+        daily_revenue: { name: "daily_revenue", sql: sqlContent },
+      },
+    };
+
+    const results = await dbtRun(manifest);
+    expect(results.error).toBeUndefined();
+    expect(results.runs.every((r) => r.status === "success")).toBe(true);
+  });
+
+  it("compiled SQL references orders_v2 after rename (not raw_orders)", async () => {
+    const ch = getChapterById(2)!;
+    const yamlContent = ch.exercise!.files![0].initialSql!;
+    const sqlContent = ch.exercise!.files![1].initialSql!;
+
+    const newYaml = renameSourceTableInYaml(yamlContent, "shop", "raw_orders", "orders_v2");
+    const sources = parseSourcesYaml(newYaml);
+    const manifest: ProjectManifest = {
+      sources,
+      models: {
+        daily_revenue: { name: "daily_revenue", sql: sqlContent },
+      },
+    };
+
+    const results = await dbtRun(manifest);
+    const compiledSql = results.runs[0]?.compiledSql ?? "";
+
+    // The compiled SQL should reference orders_v2 (the new table name from sources.yml)
+    expect(compiledSql).toContain("orders_v2");
+    // The model SQL still uses source('shop', 'raw_orders') — the compiler resolves
+    // source('shop', 'raw_orders') to the table name in sources.yml, which is now orders_v2
+    expect(compiledSql).not.toContain("raw_orders");
+  });
+
+  it("gradeDbtExercise passes after rename with updated expectations", async () => {
+    const ch = getChapterById(2)!;
+    const yamlContent = ch.exercise!.files![0].initialSql!;
+    const sqlContent = ch.exercise!.files![1].initialSql!;
+
+    const newYaml = renameSourceTableInYaml(yamlContent, "shop", "raw_orders", "orders_v2");
+    const sources = parseSourcesYaml(newYaml);
+    const manifest: ProjectManifest = {
+      sources,
+      models: {
+        daily_revenue: { name: "daily_revenue", sql: sqlContent },
+      },
+    };
+
+    const results = await dbtRun(manifest);
+    const compiledSql = results.runs[0]?.compiledSql ?? "";
+    const allSuccess = results.runs.every((r) => r.status === "success");
+
+    // After rename, the expected tables under shop are orders_v2, raw_products, raw_customers
+    const grade = gradeDbtExercise({
+      sourcesYaml: newYaml,
+      modelSql: sqlContent,
+      compiledSql,
+      dbtRunSuccess: allSuccess,
+      expectedSourceName: "shop",
+      expectedTables: ["orders_v2", "raw_products", "raw_customers"],
+      expectedSourceRefs: ["orders_v2", "raw_products"],
+      forbiddenLiteralTables: ["raw_orders", "raw_products"],
+    });
+
+    expect(grade.passed).toBe(true);
   });
 });

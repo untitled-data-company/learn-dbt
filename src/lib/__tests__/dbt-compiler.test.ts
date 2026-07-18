@@ -7,6 +7,7 @@ import {
   getDependencies,
   getMaterialization,
   parseSourcesYaml,
+  renameSourceTableInYaml,
   topologicalSort,
   ProjectManifest,
 } from "@/lib/dbt-compiler";
@@ -18,7 +19,7 @@ import {
 function makeManifest(): ProjectManifest {
   return {
     sources: {
-      ecommerce: { name: "ecommerce", table: "raw_orders" },
+      ecommerce: { name: "ecommerce", tables: ["raw_orders"] },
     },
     models: {
       stg_orders: {
@@ -81,7 +82,7 @@ describe("dbt compiler — source() and ref()", () => {
 
   it("throws for source/table mismatch", () => {
     const bad: ProjectManifest = {
-      sources: { ecommerce: { name: "ecommerce", table: "raw_orders" } },
+      sources: { ecommerce: { name: "ecommerce", tables: ["raw_orders"] } },
       models: {
         m: {
           name: "m",
@@ -114,7 +115,7 @@ describe("dbt compiler — source() and ref()", () => {
 
   it("supports single-quoted source and ref args", () => {
     const m: ProjectManifest = {
-      sources: { s: { name: "s", table: "t" } },
+      sources: { s: { name: "s", tables: ["t"] } },
       models: {
         a: { name: "a", sql: `SELECT * FROM {{ source('s', 't') }}` },
         b: { name: "b", sql: `SELECT * FROM {{ ref('a') }}` },
@@ -303,8 +304,8 @@ sources:
       - name: raw_customers
 `;
     const sources = parseSourcesYaml(yaml);
-    expect(sources.ecommerce).toEqual({ name: "ecommerce", table: "raw_orders" });
-    expect(sources.crm).toEqual({ name: "crm", table: "raw_customers" });
+    expect(sources.ecommerce).toEqual({ name: "ecommerce", tables: ["raw_orders"] });
+    expect(sources.crm).toEqual({ name: "crm", tables: ["raw_customers"] });
   });
 
   it("returns empty object for empty yaml", () => {
@@ -325,6 +326,68 @@ sources:
 `;
     const sources = parseSourcesYaml(yaml);
     expect(sources.empty_source).toBeUndefined();
-    expect(sources.good).toEqual({ name: "good", table: "t" });
+    expect(sources.good).toEqual({ name: "good", tables: ["t"] });
+  });
+});
+
+describe("dbt compiler — renameSourceTableInYaml", () => {
+  const yaml = `version: 2
+sources:
+  - name: shop
+    tables:
+      - name: raw_orders
+      - name: raw_products
+      - name: raw_customers`;
+
+  it("renames a table under the correct source", () => {
+    const result = renameSourceTableInYaml(yaml, "shop", "raw_orders", "orders_v2");
+    expect(result).toContain("name: orders_v2");
+    expect(result).not.toContain("name: raw_orders");
+    // Other tables should be unchanged
+    expect(result).toContain("name: raw_products");
+    expect(result).toContain("name: raw_customers");
+  });
+
+  it("throws when table not found under source", () => {
+    expect(() =>
+      renameSourceTableInYaml(yaml, "shop", "nonexistent", "new_name")
+    ).toThrow("nonexistent");
+  });
+
+  it("throws when source not found", () => {
+    expect(() =>
+      renameSourceTableInYaml(yaml, "ghost", "raw_orders", "orders_v2")
+    ).toThrow("raw_orders");
+  });
+
+  it("only renames the first matching table", () => {
+    const multiYaml = `version: 2
+sources:
+  - name: shop
+    tables:
+      - name: raw_orders
+      - name: raw_orders
+      - name: raw_customers`;
+    const result = renameSourceTableInYaml(multiYaml, "shop", "raw_orders", "orders_v2");
+    // The regex uses replace() which only replaces the first match
+    expect(result).toContain("name: orders_v2");
+    expect(result).toContain("name: raw_orders"); // second occurrence remains
+  });
+
+  it("works with the chapter 2 sources.yml content", () => {
+    const ch2Yaml = `# models/sources.yml
+version: 2
+
+sources:
+  - name: shop
+    tables:
+      - name: raw_orders
+      - name: raw_products
+      - name: raw_customers`;
+    const result = renameSourceTableInYaml(ch2Yaml, "shop", "raw_orders", "orders_v2");
+    expect(result).toContain("name: orders_v2");
+    expect(result).not.toContain("name: raw_orders");
+    expect(result).toContain("name: raw_products");
+    expect(result).toContain("name: raw_customers");
   });
 });
