@@ -80,6 +80,11 @@ describe("chapters — exercises", () => {
   it("chapter 0 exercise is SQL", () => {
     expect(getChapterById(0)!.exercise!.language).toBe("sql");
   });
+  it("chapter 0 exercise has expectedRows with 4 rows", () => {
+    const ch = getChapterById(0);
+    expect(ch!.exercise!.expectedRows).toBeDefined();
+    expect(ch!.exercise!.expectedRows!.length).toBe(4);
+  });
   it("chapter 2 exercise uses files array with YAML and SQL-Jinja", () => {
     const ch = getChapterById(2);
     expect(ch!.exercise!.files).toBeDefined();

@@ -628,6 +628,9 @@ function typesCompatible(expected: ColumnType, actual: ColumnType): boolean {
   if (expected === "bigint" && actual === "number") return true;
   // dates may arrive as ISO strings from DuckDB serialization
   if (expected === "date" && actual === "string") return true;
+  // expected rows may use string literals for dates (e.g. "2023-04-04")
+  // while DuckDB returns Date objects
+  if (expected === "string" && actual === "date") return true;
   return false;
 }
 
