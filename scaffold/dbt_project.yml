@@ -1,0 +1,29 @@
+# dbt_project.yml
+# Chapter 1 — the existing dbt project Sara points Luca to.
+#
+# This is the project-level configuration. It tells dbt:
+# - what the project is called (name)
+# - which profile to use for the database connection (profile)
+# - where to find models and seeds
+# - the default materialisation strategy for models
+#
+# In the browser runner this file is reference-only: the runner uses the
+# in-browser DuckDB-WASM engine directly. In a real deployment dbt reads
+# this file on every `dbt run`.
+
+name: analytics_dbt
+version: "1.0.0"
+config-version: 2
+
+# Matches the profile name in profiles.yml
+profile: analytics
+
+# Where dbt looks for model .sql files and seed .csv files
+model-paths: ["models"]
+seed-paths: ["seeds"]
+
+# Default materialisation for every model in the project.
+# Individual models can override this with a {{ config(materialized='...') }} block.
+models:
+  analytics_dbt:
+    +materialized: view
