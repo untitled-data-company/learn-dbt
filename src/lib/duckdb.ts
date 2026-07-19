@@ -1,4 +1,5 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
+import { DataType, type Field } from "apache-arrow";
 import { registerExecutor, SqlExecutor } from "./sql-executor";
 
 let db: duckdb.AsyncDuckDB | null = null;
@@ -15,12 +16,71 @@ const DUCKDB_BUNDLE_URLS: duckdb.DuckDBBundles = {
   },
 };
 
+// Arrow's row.toJSON() leaves some column types in Arrow-native
+// representations instead of plain JS values:
+//  - DATE/TIMESTAMP columns come back as raw epoch-ms numbers (the
+//    get-visitor doesn't wrap them in a JS Date).
+//  - DECIMAL columns (e.g. SUM(quantity * price)) come back as
+//    BigNum-like objects whose default toJSON() is the *unscaled*
+//    digit string (e.g. "4995" instead of 49.95).
+// classifyArrowFields/normalizeArrowRow convert both so callers (and the
+// grader) see the same shape as the native DuckDB executor. Split out as
+// pure functions so the conversion can be unit-tested without a real
+// DuckDB-WASM connection (which needs a Worker, unavailable in jsdom).
+
+/** A decimal value as returned by Arrow's get-visitor — exposes valueOf(scale) to read it as a properly scaled JS number. */
+interface ArrowBigNum {
+  valueOf(scale?: number): number;
+}
+
+export function classifyArrowFields(
+  fields: Pick<Field, "name" | "type">[]
+): { dateColumns: string[]; decimalColumns: Map<string, number> } {
+  const dateColumns: string[] = [];
+  const decimalColumns = new Map<string, number>();
+  for (const f of fields) {
+    if (DataType.isDate(f.type) || DataType.isTimestamp(f.type)) {
+      dateColumns.push(f.name);
+    } else if (DataType.isDecimal(f.type)) {
+      decimalColumns.set(f.name, f.type.scale);
+    }
+  }
+  return { dateColumns, decimalColumns };
+}
+
+export function normalizeArrowRow(
+  obj: Record<string, unknown>,
+  dateColumns: string[],
+  decimalColumns: Map<string, number>
+): Record<string, unknown> {
+  for (const col of dateColumns) {
+    const v = obj[col];
+    if (typeof v === "number") obj[col] = new Date(v);
+  }
+  for (const [col, scale] of decimalColumns) {
+    const v = obj[col] as ArrowBigNum | null;
+    if (v != null) obj[col] = v.valueOf(scale);
+  }
+  return obj;
+}
+
 /** DuckDB-WASM-backed executor for browser environments */
 class WasmExecutor implements SqlExecutor {
   async query<T = Record<string, unknown>>(sql: string): Promise<T[]> {
     const c = await getConnection();
     const arrowTable = await c.query(sql);
-    return arrowTable.toArray().map((row) => row.toJSON() as T);
+    const { dateColumns, decimalColumns } = classifyArrowFields(
+      arrowTable.schema.fields
+    );
+
+    return arrowTable.toArray().map(
+      (row) =>
+        normalizeArrowRow(
+          row.toJSON() as Record<string, unknown>,
+          dateColumns,
+          decimalColumns
+        ) as T
+    );
   }
 
   async exec(sql: string): Promise<void> {

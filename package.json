@@ -17,6 +17,7 @@
     "@apache-arrow/es2015-esm": "^15.0.0",
     "@duckdb/duckdb-wasm": "^1.29.0",
     "@monaco-editor/react": "^4.6.0",
+    "apache-arrow": "^17.0.0",
     "js-yaml": "^4.1.0",
     "next": "^16.2.0",
     "nunjucks": "^3.2.4",
