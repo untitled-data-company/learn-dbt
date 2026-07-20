@@ -88,7 +88,7 @@ const CHARACTERS = {
     description: "Makes mistakes, learns. You are helping him.",
   },
   manager: {
-    name: "The Manager",
+    name: "Giorgio",
     role: "Sets the stakes",
     description: "Asks for reliability and speed. Not technical, but impatient.",
   },

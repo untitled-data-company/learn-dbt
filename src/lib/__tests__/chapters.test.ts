@@ -34,7 +34,7 @@ describe("chapters — character cards", () => {
   });
   it("chapter 1 has the Manager", () => {
     const ch1 = getChapterById(1);
-    expect(ch1!.characters.some((c) => c.name === "The Manager")).toBe(true);
+    expect(ch1!.characters.some((c) => c.name === "Giorgio")).toBe(true);
   });
   it("chapter 2 has Giulia", () => {
     const ch2 = getChapterById(2);

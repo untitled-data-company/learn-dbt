@@ -4,19 +4,19 @@
 
 Thursday. 10:00. The weekly analytics sync.
 
-Luca dials in with his coffee. The manager, Sara, shares her screen — the
+Luca dials in with his coffee. The manager, Giorgio, shares his screen — the
 *Revenue by category* dashboard. The numbers are from Tuesday.
 
-> "Yesterday's data was stale," she says. "I opened the dashboard before the
+> "Yesterday's data was stale," he says. "I opened the dashboard before the
 > board meeting and it showed Monday's numbers. Luca, you usually refresh it
 > in the morning — what happened?"
 
-Luca was on holiday on Wednesday. He says nothing. He does not need to. Sara
+Luca was on holiday on Wednesday. He says nothing. He does not need to. Giorgio
 already knows the answer, and everyone on the call knows it too: the dashboard
 only updates when Luca runs his query and pastes the results into the BI tool
 by hand. No Luca, no refresh.
 
-> "This cannot be the plan," Sara continues. "We have a dbt project sitting
+> "This cannot be the plan," Giorgio continues. "We have a dbt project sitting
 > right there — the data engineering team set it up six months ago. It has
 > profiles, it has sources, it has a models directory with one example model
 > nobody has touched since. It is time to move your query into it."
@@ -27,7 +27,7 @@ file — `stg_customers.sql` — left behind by Giulia as a template. The raw
 tables (`raw_orders`, `raw_products`, `raw_customers`) are already declared as
 sources. The plumbing is there. Nobody has used it.
 
-> "Your morning query becomes a dbt model," Sara says. "Once it is in dbt, we
+> "Your morning query becomes a dbt model," Giorgio says. "Once it is in dbt, we
 > schedule it. It runs every day at 6 a.m. whether you are here or not. The
 > dashboard reads from the model, not from your clipboard. That is the end of
 > the story — or at least the beginning of a better one."
@@ -129,7 +129,7 @@ Or globally in `dbt_project.yml`. For now, the default is enough.
 
 ## The dbt project scaffold
 
-The project Sara pointed Luca to has this structure:
+The project Giorgio pointed Luca to has this structure:
 
 ```
 analytics_dbt/
@@ -237,7 +237,7 @@ chapter: the query is the same. The system around it is different.
 
 Luca runs `dbt run`. Green across the board. He pushes back from his desk,
 satisfied. The query is in the project. The dashboard can read the model.
-Sara will be happy.
+Giorgio will be happy.
 
 Then Giulia walks past his desk, glances at his screen, and stops.
 
