@@ -567,7 +567,12 @@ export function ChapterExerciseRunner({
 
           {/* AI prompt box */}
           {exercise && (
-            <AiPromptBox prompt={exercise.prompt} />
+            <AiPromptBox
+              prompt={exercise.prompt}
+              isDbtExercise={
+                exercise.useDbtRun === true || exercise.language === "sql-jinja"
+              }
+            />
           )}
 
           {!result && !grade && !isYamlOnly && !isDbtRun && (
@@ -592,10 +597,16 @@ export function ChapterExerciseRunner({
  * to paste into their AI tool of choice. Shown in the verification panel
  * below the grading results.
  */
-function AiPromptBox({ prompt }: { prompt: string }) {
+function AiPromptBox({
+  prompt,
+  isDbtExercise,
+}: {
+  prompt: string;
+  isDbtExercise: boolean;
+}) {
   const [copied, setCopied] = useState(false);
 
-  const fullPrompt = buildAiPrompt(prompt);
+  const fullPrompt = buildAiPrompt(prompt, isDbtExercise);
 
   const handleCopy = async () => {
     try {
@@ -625,8 +636,12 @@ function AiPromptBox({ prompt }: { prompt: string }) {
   );
 }
 
-function buildAiPrompt(exercisePrompt: string): string {
-  return `I'm working on a dbt learning exercise. ${exercisePrompt} Can you help me understand the approach and point out common pitfalls?`;
+function buildAiPrompt(exercisePrompt: string, isDbtExercise: boolean): string {
+  // Chapters that are plain SQL (no dbt/Jinja yet) shouldn't mention dbt
+  // here — that biases the AI assistant toward suggesting dbt/Jinja
+  // syntax (ref(), source(), models/) instead of plain SQL.
+  const context = isDbtExercise ? "a dbt learning exercise" : "a SQL learning exercise";
+  return `I'm working on ${context}. ${exercisePrompt} Can you help me understand the approach and point out common pitfalls?`;
 }
 
 /**
