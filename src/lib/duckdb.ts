@@ -1,6 +1,6 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
 import { registerExecutor, SqlExecutor } from "./sql-executor";
-import { Type, Table as ArrowTable } from "@apache-arrow/es2015-esm";
+import { Type } from "@apache-arrow/es2015-esm";
 
 let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
@@ -83,9 +83,7 @@ export function convertArrowRow(
       case Type.Timestamp:
         // DuckDB-WASM serialises DATE/TIMESTAMP as epoch-ms numbers
         result[col.name] =
-          typeof v === "number" && !(v instanceof Date)
-            ? new Date(v)
-            : v;
+          typeof v === "number" ? new Date(v) : v;
         break;
 
       case Type.Decimal:
@@ -106,7 +104,7 @@ export function convertArrowRow(
  * Returns an array of { name, typeId, scale? } for every column.
  */
 function buildColumnSchema(
-  arrowTable: ArrowTable,
+  arrowTable: { schema: { fields: { name: string; type: { typeId: number; scale?: number } }[] } },
 ): { name: string; typeId: number; scale?: number }[] {
   return arrowTable.schema.fields.map((f) => ({
     name: f.name,
