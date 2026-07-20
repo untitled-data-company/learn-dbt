@@ -12,6 +12,7 @@ import {
 } from "@/lib/progress";
 import { useProgress } from "@/lib/use-progress";
 import { ChapterExerciseRunner } from "./ChapterExerciseRunner";
+import { TableExplorerCard } from "./TableExplorerCard";
 
 /**
  * ChapterPage — the split-pane chapter layout.
@@ -154,16 +155,11 @@ export function ChapterPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">
                 Tables
               </h2>
-              <ul className="space-y-1">
+              <div className="space-y-1">
                 {chapter.tables.map((table) => (
-                  <li
-                    key={table}
-                    className="font-mono text-sm text-gray-700 bg-white border border-gray-200 rounded px-3 py-1.5"
-                  >
-                    {table}
-                  </li>
+                  <TableExplorerCard key={table} tableName={table} />
                 ))}
-              </ul>
+              </div>
             </section>
           )}
 

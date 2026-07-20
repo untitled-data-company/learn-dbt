@@ -2,7 +2,7 @@
 
 ## Story
 
-Luca's manager stops by his desk. "Can you pull revenue by category for me? I need it before the 10am stand-up." Luca opens the SQL editor and writes a query against the raw tables he already knows.
+Luca's manager, Giorgio, stops by his desk. "I need revenue by category — it's going on a dashboard for the CEO. Can you get me a query today?" Luca opens the SQL editor and writes a query against the raw tables he already knows.
 
 ## Concept
 
@@ -34,7 +34,3 @@ order by 2 desc, 3 desc
 - The query returns at least 10 rows.
 - Columns are `category`, `order_date`, `total_revenue`.
 - User answers: how much revenue did the category 'Electronics' make on a given date?
-
-## AI prompt to try
-
-> I'm new to this SQL editor. Can you help me write a query that joins two tables, sums a calculated column, and groups the results by category and date?

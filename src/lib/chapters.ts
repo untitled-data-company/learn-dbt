@@ -112,13 +112,11 @@ export const CHAPTERS: ChapterMeta[] = [
     storyBeat: "Luca's morning query",
     keyConcept: "Pure SQL exploration",
     story:
-      "Luca's manager stops by his desk. \"Can you pull revenue by category for me? I need it before the 10am stand-up.\" Luca opens the SQL editor and writes a query against the raw tables he already knows.",
+      "Luca's manager, Giorgio, stops by his desk. \"I need revenue by category — it's going on a dashboard for the CEO. Can you get me a query today?\" Luca opens the SQL editor and writes a query against the raw tables he already knows.",
     concept:
       "Just the data and the SQL you already know. Get comfortable with the editor, the tables, and the AI helper before anything else is layered on top.",
     characters: [CHARACTERS.luca, CHARACTERS.manager],
     tables: ["raw_orders", "raw_products", "raw_customers"],
-    aiPrompt:
-      "I'm new to this SQL editor. Can you help me write a query that joins two tables, sums a calculated column, and groups the results by category and date?",
     exercise: {
       prompt:
         "Write a query that returns daily revenue by category. Join raw_orders with raw_products, multiply quantity by price, group by category and order_date.",
