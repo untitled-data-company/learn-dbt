@@ -33,9 +33,11 @@ export function convertDecimal(v: unknown, scale: number): number {
     return (v as { toNumber: (s: number) => number }).toNumber(scale);
   }
 
-  // Strategy 2: valueOf(scale) — some Arrow builds expose this
+  // Strategy 2: valueOf(scale) — Arrow's BigNum exposes this; calling it
+  // without the scale returns the *unscaled* integer, so the scale must
+  // be passed through here.
   if (typeof (v as Record<string, unknown>).valueOf === "function") {
-    const n = (v as { valueOf: () => unknown }).valueOf();
+    const n = (v as { valueOf: (scale?: number) => unknown }).valueOf(scale);
     if (typeof n === "number") return n;
     if (typeof n === "bigint") return Number(n) / 10 ** scale;
   }
@@ -58,11 +60,20 @@ export function convertDecimal(v: unknown, scale: number): number {
  * Convert a single row's values from Arrow JSON representation to
  * plain JS values, guided by the Arrow schema.
  *
- * - DATE / TIMESTAMP epoch-ms numbers → Date objects
+ * - DATE epoch-ms numbers → date-only ISO strings ("2023-04-04")
+ * - TIMESTAMP epoch-ms numbers → full ISO datetime strings
+ *   ("2023-04-04T00:00:00.000Z")
  * - DECIMAL objects → JS number (scale applied)
  * - Null values are left untouched
- * - Double-normalisation guard: only convert number → Date when
- *   `typeof v === "number" && !(v instanceof Date)`
+ * - Double-normalisation guard: only convert number → ISO string when
+ *   `typeof v === "number"` — an already-converted string passes through
+ *   unchanged, so re-running this on a normalised row is a no-op.
+ *
+ * Rendering DATE/TIMESTAMP as plain ISO strings (rather than Date
+ * objects) keeps them from displaying as raw epoch values wherever a
+ * caller doesn't explicitly re-serialise a Date, and matches how
+ * expectedRows in chapters.ts encode dates, so the grader's plain
+ * string-equality path is exercised directly.
  */
 export function convertArrowRow(
   row: Record<string, unknown>,
@@ -80,10 +91,14 @@ export function convertArrowRow(
 
     switch (col.typeId) {
       case Type.Date:
-      case Type.Timestamp:
-        // DuckDB-WASM serialises DATE/TIMESTAMP as epoch-ms numbers
+        // DuckDB-WASM serialises DATE as epoch-ms numbers
         result[col.name] =
-          typeof v === "number" ? new Date(v) : v;
+          typeof v === "number" ? new Date(v).toISOString().slice(0, 10) : v;
+        break;
+
+      case Type.Timestamp:
+        // DuckDB-WASM serialises TIMESTAMP as epoch-ms numbers
+        result[col.name] = typeof v === "number" ? new Date(v).toISOString() : v;
         break;
 
       case Type.Decimal:

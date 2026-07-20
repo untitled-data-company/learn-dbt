@@ -68,11 +68,31 @@ function registerSqlJinja(monaco: typeof import("monaco-editor")) {
 
   monaco.languages.register({ id: "sql-jinja" });
 
+  // Monaco's Monarch compiler requires all states nested under a
+  // `tokenizer` object with the root state named `root`. Our exported
+  // tokenizer keeps the root state under `starts` and sub-states as flat
+  // top-level properties (so it stays plain, testable data) — adapt it
+  // to Monarch's expected shape here.
+  const { defaultToken, tokenPostfix, ignoreCase, keywords, operators, symbols, starts, ...subStates } =
+    sqlJinjaTokenizer;
+  const monarchLanguage = {
+    defaultToken,
+    tokenPostfix,
+    ignoreCase,
+    keywords,
+    operators,
+    symbols,
+    tokenizer: {
+      root: starts,
+      ...subStates,
+    },
+  };
+
   // Set Monarch tokenizer — cast to Monaco's IMonarchLanguage since our
   // interface is structurally compatible but not the same type object.
   monaco.languages.setMonarchTokensProvider(
     "sql-jinja",
-    sqlJinjaTokenizer as unknown as Parameters<
+    monarchLanguage as unknown as Parameters<
       typeof monaco.languages.setMonarchTokensProvider
     >[1],
   );

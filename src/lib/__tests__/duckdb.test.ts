@@ -8,8 +8,12 @@ describe("convertDecimal", () => {
     expect(convertDecimal(decimalValue, 2)).toBe(9.99);
   });
 
-  it("converts an Arrow Decimal with valueOf returning a number", () => {
-    const decimalValue = { valueOf: () => 19.99 };
+  it("converts an Arrow Decimal with valueOf(scale), forwarding the scale argument", () => {
+    // Mirrors Arrow's real BigNum.valueOf(scale) contract: the returned
+    // value depends on scale actually being passed through. A mock that
+    // ignores its argument (e.g. `valueOf: () => 19.99`) can't catch a
+    // regression where scale is silently dropped.
+    const decimalValue = { valueOf: (scale?: number) => (scale === 2 ? 19.99 : NaN) };
     expect(convertDecimal(decimalValue, 2)).toBe(19.99);
   });
 
@@ -50,18 +54,16 @@ describe("convertArrowRow", () => {
     { name: "nullable_decimal", typeId: Type.Decimal, scale: 2 },
   ];
 
-  it("converts DATE epoch-ms to Date object", () => {
+  it("converts DATE epoch-ms to a date-only ISO string", () => {
     const row = { id: 1, name: "test", created_at: 1673740800000, updated_at: null, price: null, nullable_date: null, nullable_decimal: null };
     const result = convertArrowRow(row, schema);
-    expect(result.created_at).toBeInstanceOf(Date);
-    expect((result.created_at as Date).toISOString()).toBe("2023-01-15T00:00:00.000Z");
+    expect(result.created_at).toBe("2023-01-15");
   });
 
-  it("converts TIMESTAMP epoch-ms to Date object", () => {
+  it("converts TIMESTAMP epoch-ms to a full ISO datetime string", () => {
     const row = { id: 1, name: "test", created_at: null, updated_at: 1680307200000, price: null, nullable_date: null, nullable_decimal: null };
     const result = convertArrowRow(row, schema);
-    expect(result.updated_at).toBeInstanceOf(Date);
-    expect((result.updated_at as Date).toISOString()).toBe("2023-04-01T00:00:00.000Z");
+    expect(result.updated_at).toBe("2023-04-01T00:00:00.000Z");
   });
 
   it("converts DECIMAL to number", () => {
@@ -79,12 +81,10 @@ describe("convertArrowRow", () => {
     expect(result.nullable_decimal).toBeNull();
   });
 
-  it("guards against double-normalisation (Date already a Date)", () => {
-    const alreadyDate = new Date(1673740800000);
-    const row = { id: 1, name: "test", created_at: alreadyDate, updated_at: null, price: null, nullable_date: null, nullable_decimal: null };
+  it("guards against double-normalisation (already an ISO string)", () => {
+    const row = { id: 1, name: "test", created_at: "2023-01-15", updated_at: null, price: null, nullable_date: null, nullable_decimal: null };
     const result = convertArrowRow(row, schema);
-    expect(result.created_at).toBe(alreadyDate);
-    expect(result.created_at).toBeInstanceOf(Date);
+    expect(result.created_at).toBe("2023-01-15");
   });
 
   it("does not mutate the original row object", () => {
