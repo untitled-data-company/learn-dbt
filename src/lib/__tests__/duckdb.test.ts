@@ -1,75 +1,104 @@
 import { describe, it, expect } from "vitest";
-import { Type } from "apache-arrow";
-import { classifyArrowFields, normalizeArrowRow } from "@/lib/duckdb";
+import { convertDecimal, convertArrowRow } from "@/lib/duckdb";
+import { Type } from "@apache-arrow/es2015-esm";
 
-/**
- * These target a regression where DuckDB-WASM query results, which flow
- * through Apache Arrow, were not converted to the plain JS values the
- * grader expects:
- *  - DATE/TIMESTAMP columns arrived as raw epoch-ms numbers instead of
- *    Date objects.
- *  - DECIMAL columns (e.g. SUM(quantity * price)) arrived as BigNum-like
- *    objects whose default JSON serialisation is the *unscaled* digit
- *    string (e.g. "4995" instead of 49.95).
- * A real DuckDB-WASM connection needs a Worker, unavailable in jsdom, so
- * these exercise the pure conversion functions with Arrow-shaped fixtures
- * instead.
- */
-
-describe("classifyArrowFields", () => {
-  it("identifies DATE and TIMESTAMP columns", () => {
-    const fields = [
-      { name: "order_date", type: { typeId: Type.Date } },
-      { name: "created_at", type: { typeId: Type.Timestamp } },
-      { name: "category", type: { typeId: Type.Utf8 } },
-    ];
-    const { dateColumns } = classifyArrowFields(fields as never);
-    expect(dateColumns).toEqual(["order_date", "created_at"]);
+describe("convertDecimal", () => {
+  it("converts an Arrow Decimal with toNumber(scale)", () => {
+    const decimalValue = { toNumber: (s: number) => 9.99 };
+    expect(convertDecimal(decimalValue, 2)).toBe(9.99);
   });
 
-  it("identifies DECIMAL columns and captures their scale", () => {
-    const fields = [
-      { name: "total_revenue", type: { typeId: Type.Decimal, scale: 2 } },
-      { name: "quantity", type: { typeId: Type.Int32 } },
-    ];
-    const { decimalColumns } = classifyArrowFields(fields as never);
-    expect(decimalColumns.get("total_revenue")).toBe(2);
-    expect(decimalColumns.has("quantity")).toBe(false);
+  it("converts an Arrow Decimal with valueOf returning a number", () => {
+    const decimalValue = { valueOf: () => 19.99 };
+    expect(convertDecimal(decimalValue, 2)).toBe(19.99);
+  });
+
+  it("converts an Arrow Decimal with valueOf returning a bigint", () => {
+    const decimalValue = { valueOf: () => BigInt(2999) };
+    expect(convertDecimal(decimalValue, 2)).toBe(29.99);
+  });
+
+  it("converts a raw bigint value", () => {
+    expect(convertDecimal(BigInt(12345), 3)).toBe(12.345);
+  });
+
+  it("passes through an already-plain number", () => {
+    expect(convertDecimal(42.5, 2)).toBe(42.5);
+  });
+
+  it("parses a string representation", () => {
+    expect(convertDecimal("99.99", 2)).toBe(99.99);
+  });
+
+  it("returns null as-is", () => {
+    expect(convertDecimal(null, 2)).toBeNull();
+  });
+
+  it("returns undefined as-is", () => {
+    expect(convertDecimal(undefined, 2)).toBeUndefined();
   });
 });
 
-describe("normalizeArrowRow", () => {
-  it("converts epoch-ms numbers in date columns to Date objects", () => {
-    const row = { order_date: Date.UTC(2023, 3, 4), category: "gadgets" };
-    const result = normalizeArrowRow(row, ["order_date"], new Map());
-    expect(result.order_date).toBeInstanceOf(Date);
-    expect((result.order_date as Date).toISOString().slice(0, 10)).toBe(
-      "2023-04-04"
-    );
+describe("convertArrowRow", () => {
+  const schema = [
+    { name: "id", typeId: Type.Int },
+    { name: "name", typeId: Type.Utf8 },
+    { name: "created_at", typeId: Type.Date },
+    { name: "updated_at", typeId: Type.Timestamp },
+    { name: "price", typeId: Type.Decimal, scale: 2 },
+    { name: "nullable_date", typeId: Type.Date },
+    { name: "nullable_decimal", typeId: Type.Decimal, scale: 2 },
+  ];
+
+  it("converts DATE epoch-ms to Date object", () => {
+    const row = { id: 1, name: "test", created_at: 1673740800000, updated_at: null, price: null, nullable_date: null, nullable_decimal: null };
+    const result = convertArrowRow(row, schema);
+    expect(result.created_at).toBeInstanceOf(Date);
+    expect((result.created_at as Date).toISOString()).toBe("2023-01-15T00:00:00.000Z");
   });
 
-  it("leaves null date column values untouched", () => {
-    const row = { order_date: null };
-    const result = normalizeArrowRow(row, ["order_date"], new Map());
-    expect(result.order_date).toBeNull();
+  it("converts TIMESTAMP epoch-ms to Date object", () => {
+    const row = { id: 1, name: "test", created_at: null, updated_at: 1680307200000, price: null, nullable_date: null, nullable_decimal: null };
+    const result = convertArrowRow(row, schema);
+    expect(result.updated_at).toBeInstanceOf(Date);
+    expect((result.updated_at as Date).toISOString()).toBe("2023-04-01T00:00:00.000Z");
   });
 
-  it("converts BigNum decimal values to a scaled number via valueOf(scale)", () => {
-    const bigNum = { valueOf: (scale?: number) => (scale === 2 ? 49.95 : NaN) };
-    const row = { total_revenue: bigNum };
-    const result = normalizeArrowRow(row, [], new Map([["total_revenue", 2]]));
-    expect(result.total_revenue).toBe(49.95);
+  it("converts DECIMAL to number", () => {
+    const row = { id: 1, name: "test", created_at: null, updated_at: null, price: { toNumber: (_s: number) => 9.99 }, nullable_date: null, nullable_decimal: null };
+    const result = convertArrowRow(row, schema);
+    expect(result.price).toBe(9.99);
   });
 
-  it("leaves null decimal values untouched", () => {
-    const row = { total_revenue: null };
-    const result = normalizeArrowRow(row, [], new Map([["total_revenue", 2]]));
-    expect(result.total_revenue).toBeNull();
+  it("leaves null values untouched", () => {
+    const row = { id: 1, name: "test", created_at: null, updated_at: null, price: null, nullable_date: null, nullable_decimal: null };
+    const result = convertArrowRow(row, schema);
+    expect(result.created_at).toBeNull();
+    expect(result.price).toBeNull();
+    expect(result.nullable_date).toBeNull();
+    expect(result.nullable_decimal).toBeNull();
   });
 
-  it("does not touch columns outside the given date/decimal sets", () => {
-    const row = { category: "gadgets", quantity: 5 };
-    const result = normalizeArrowRow(row, [], new Map());
-    expect(result).toEqual({ category: "gadgets", quantity: 5 });
+  it("guards against double-normalisation (Date already a Date)", () => {
+    const alreadyDate = new Date(1673740800000);
+    const row = { id: 1, name: "test", created_at: alreadyDate, updated_at: null, price: null, nullable_date: null, nullable_decimal: null };
+    const result = convertArrowRow(row, schema);
+    expect(result.created_at).toBe(alreadyDate);
+    expect(result.created_at).toBeInstanceOf(Date);
+  });
+
+  it("does not mutate the original row object", () => {
+    const row = { id: 1, name: "test", created_at: 1673740800000, updated_at: null, price: { toNumber: (_s: number) => 9.99 }, nullable_date: null, nullable_decimal: null };
+    const result = convertArrowRow(row, schema);
+    expect(result).not.toBe(row);
+    expect(row.created_at).toBe(1673740800000); // original unchanged
+    expect(row.price).toEqual({ toNumber: expect.any(Function) }); // original unchanged
+  });
+
+  it("passes through non-DATE/TIMESTAMP/DECIMAL columns unchanged", () => {
+    const row = { id: 42, name: "hello", created_at: null, updated_at: null, price: null, nullable_date: null, nullable_decimal: null };
+    const result = convertArrowRow(row, schema);
+    expect(result.id).toBe(42);
+    expect(result.name).toBe("hello");
   });
 });
