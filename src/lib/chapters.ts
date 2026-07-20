@@ -139,7 +139,9 @@ JOIN raw_products p ON ...`,
         { category: "gadgets", order_date: "2023-04-02", total_revenue: 19.99 },
         { category: "gadgets", order_date: "2023-04-01", total_revenue: 19.98 },
       ],
-      orderMatters: true,
+      // The prompt doesn't ask for a specific row order, so grade rows
+      // as a set rather than requiring the exact sequence.
+      orderMatters: false,
     },
   },
   {
