@@ -4,7 +4,7 @@ import { Type } from "@apache-arrow/es2015-esm";
 
 describe("convertDecimal", () => {
   it("converts an Arrow Decimal with toNumber(scale)", () => {
-    const decimalValue = { toNumber: (s: number) => 9.99 };
+    const decimalValue = { toNumber: (_s: number) => 9.99 };
     expect(convertDecimal(decimalValue, 2)).toBe(9.99);
   });
 
