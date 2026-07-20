@@ -12,15 +12,45 @@ import {
 } from "@/lib/dbt-compiler";
 import { dbtRun } from "@/lib/dbt-runner";
 
+// The reference solution for chapter 0 (mirrors docs/chapters/chapter-00.md).
+// exercise.initialSql is intentionally a stub the learner must complete —
+// it must NOT already be a passing answer, so these tests exercise a
+// separately-maintained solution string rather than initialSql.
+const CHAPTER_0_SOLUTION_SQL = `SELECT
+  p.category,
+  o.order_date,
+  SUM(o.quantity * p.price) AS total_revenue
+FROM raw_orders o
+JOIN raw_products p ON o.product_id = p.product_id
+GROUP BY 1, 2
+ORDER BY 2 DESC, 3 DESC`;
+
 describe("chapter flow — chapter 0 SQL exercise", () => {
   beforeAll(async () => { await setupTestExecutor(); });
   it("chapter 0 has a SQL exercise with expected rows", () => {
     const ch = getChapterById(0);
     expect(ch!.exercise!.language).toBe("sql");
   });
-  it("running the seed SQL produces rows with required columns", async () => {
+  it("initialSql is a stub, not an already-passing solution", async () => {
+    // Regression test: the editor previously shipped with the complete
+    // correct answer pre-filled, so clicking "Run SQL" without writing
+    // anything already passed. initialSql must require the learner to
+    // fill something in before it can pass grading.
     const ch = getChapterById(0);
     const result = await runSql(ch!.exercise!.initialSql!);
+    if (!result.error) {
+      const grade = gradeRows({
+        actual: result.rows,
+        expected: ch!.exercise!.expectedRows!,
+        requiredColumns: ch!.exercise!.requiredColumns,
+        orderMatters: ch!.exercise!.orderMatters,
+      });
+      expect(grade.passed).toBe(false);
+    }
+  });
+  it("running the reference solution produces rows with required columns", async () => {
+    const ch = getChapterById(0);
+    const result = await runSql(CHAPTER_0_SOLUTION_SQL);
     expect(result.error).toBeUndefined();
     expect(result.rows.length).toBeGreaterThan(0);
     const cols = Object.keys(result.rows[0]);
@@ -28,9 +58,9 @@ describe("chapter flow — chapter 0 SQL exercise", () => {
     expect(cols).toContain("order_date");
     expect(cols).toContain("total_revenue");
   });
-  it("grading the seed SQL passes column checks", async () => {
+  it("grading the reference solution passes column checks", async () => {
     const ch = getChapterById(0);
-    const result = await runSql(ch!.exercise!.initialSql!);
+    const result = await runSql(CHAPTER_0_SOLUTION_SQL);
     const grade = gradeRows({
       actual: result.rows,
       expected: ch!.exercise!.expectedRows ?? [],
@@ -38,9 +68,9 @@ describe("chapter flow — chapter 0 SQL exercise", () => {
     });
     expect(grade.checks.find((c) => c.name === "columns")?.passed).toBe(true);
   });
-  it("full grading of chapter 0 seed SQL passes all checks", async () => {
+  it("full grading of the reference solution passes all checks", async () => {
     const ch = getChapterById(0);
-    const result = await runSql(ch!.exercise!.initialSql!);
+    const result = await runSql(CHAPTER_0_SOLUTION_SQL);
     const grade = gradeRows({
       actual: result.rows,
       expected: ch!.exercise!.expectedRows!,

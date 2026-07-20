@@ -123,15 +123,13 @@ export const CHAPTERS: ChapterMeta[] = [
       prompt:
         "Write a query that returns daily revenue by category. Join raw_orders with raw_products, multiply quantity by price, group by category and order_date.",
       fileName: "query.sql",
-      initialSql: `-- Write your query here
+      initialSql: `-- Write your query here.
+-- Join raw_orders with raw_products, multiply quantity by price,
+-- and group by category and order_date.
 SELECT
-  p.category,
-  o.order_date,
-  SUM(o.quantity * p.price) AS total_revenue
+  ...
 FROM raw_orders o
-JOIN raw_products p ON o.product_id = p.product_id
-GROUP BY 1, 2
-ORDER BY 2 DESC, 3 DESC`,
+JOIN raw_products p ON ...`,
       language: "sql",
       requiredColumns: ["category", "order_date", "total_revenue"],
       seedTables: ["raw_orders", "raw_products", "raw_customers"],

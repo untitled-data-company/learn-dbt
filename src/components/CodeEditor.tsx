@@ -158,13 +158,23 @@ export function CodeEditor({
   // position, so switching tabs via setModel preserves editing state.
   const modelsRef = useRef<Map<string, MonacoEditor.ITextModel>>(new Map());
 
+  // Monaco loads asynchronously; beforeMount/onMount only populate refs,
+  // which don't trigger effect re-runs on their own. These ready flags
+  // let the model-creation and model-swap effects below re-run once the
+  // refs actually become available, instead of silently no-op'ing on
+  // their first (pre-mount) run and never firing again.
+  const [isMonacoReady, setIsMonacoReady] = useState(false);
+  const [isEditorReady, setIsEditorReady] = useState(false);
+
   const handleBeforeMount: BeforeMount = useCallback((monaco) => {
     monacoRef.current = monaco;
     registerSqlJinja(monaco);
+    setIsMonacoReady(true);
   }, []);
 
   const handleMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
+    setIsEditorReady(true);
   }, []);
 
   // ── Create / update Monaco models when files or contents change ──
@@ -195,7 +205,7 @@ export function CodeEditor({
         }
       }
     }
-  }, [files, contents]);
+  }, [files, contents, isMonacoReady]);
 
   // ── Swap the active model when the active tab changes ──
   useEffect(() => {
@@ -213,7 +223,7 @@ export function CodeEditor({
         editor.setModel(model);
       }
     }
-  }, [active]);
+  }, [active, isEditorReady]);
 
   // ── Tab switching ──
   const handleTabClick = (name: string) => {
