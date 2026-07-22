@@ -82,6 +82,54 @@ describe("chapter flow — chapter 0 SQL exercise", () => {
   });
 });
 
+// Chapter 1's model SQL is identical to chapter 0's — only where it lives
+// changes (per docs/chapters/chapter-01.md). source()/ref() aren't
+// introduced until chapter 2, so this stays plain SQL against literal
+// table names, same as chapter 0.
+const CHAPTER_1_SOLUTION_SQL = CHAPTER_0_SOLUTION_SQL;
+
+describe("chapter flow — chapter 1 SQL exercise", () => {
+  beforeAll(async () => { await setupTestExecutor(); });
+  it("chapter 1 has grading criteria (regression: used to have none)", () => {
+    // Regression test: chapter 1's exercise previously had neither
+    // expectedRows nor minRows, so handleRun() in ChapterExerciseRunner
+    // never called gradeRows() at all — running any query, correct or
+    // not, never showed a pass/fail result.
+    const ch = getChapterById(1);
+    expect(ch!.exercise!.expectedRows).toBeDefined();
+    expect(ch!.exercise!.expectedRows!.length).toBeGreaterThan(0);
+  });
+  it("initialSql does not use unresolved Jinja (single-file mode can't compile it)", () => {
+    // Regression test: initialSql previously used {{ source(...) }},
+    // which single-file "Run SQL" mode sends straight to DuckDB with no
+    // compilation step — it errored on the literal "{{" before grading
+    // ever had a chance to run.
+    const ch = getChapterById(1);
+    expect(ch!.exercise!.initialSql).not.toContain("{{");
+  });
+  it("running the reference solution produces rows with required columns", async () => {
+    const result = await runSql(CHAPTER_1_SOLUTION_SQL);
+    expect(result.error).toBeUndefined();
+    expect(result.rows.length).toBeGreaterThan(0);
+    const cols = Object.keys(result.rows[0]);
+    expect(cols).toContain("category");
+    expect(cols).toContain("order_date");
+    expect(cols).toContain("total_revenue");
+  });
+  it("full grading of the reference solution passes all checks", async () => {
+    const ch = getChapterById(1);
+    const result = await runSql(CHAPTER_1_SOLUTION_SQL);
+    const grade = gradeRows({
+      actual: result.rows,
+      expected: ch!.exercise!.expectedRows!,
+      requiredColumns: ch!.exercise!.requiredColumns,
+      orderMatters: ch!.exercise!.orderMatters,
+    });
+    expect(grade.passed).toBe(true);
+    expect(grade.checks.every((c) => c.passed)).toBe(true);
+  });
+});
+
 describe("chapter flow — progress gating", () => {
   it("chapter 0 is unlocked with empty progress", () => {
     expect(isChapterUnlocked(0, {})).toBe(true);

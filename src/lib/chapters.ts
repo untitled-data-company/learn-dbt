@@ -157,19 +157,27 @@ JOIN raw_products p ON ...`,
       "Turn this SQL query into a dbt model. Then tell me what is missing to make it production-ready.",
     exercise: {
       prompt:
-        "Create a dbt model `daily_revenue` from the chapter 0 query. The model should select daily revenue by category.",
+        "Create a dbt model `daily_revenue` from the chapter 0 query. The model should select daily revenue by category. The SQL itself does not change from Chapter 0 — only where it lives.",
       fileName: "daily_revenue.sql",
       initialSql: `-- models/daily_revenue.sql
+-- Move your Chapter 0 query here — the SQL does not change,
+-- only where it lives.
 SELECT
-  p.category,
-  o.order_date,
-  SUM(o.quantity * p.price) AS total_revenue
-FROM {{ source('shop', 'raw_orders') }} o
-JOIN {{ source('shop', 'raw_products') }} p ON o.product_id = p.product_id
-GROUP BY 1, 2`,
+  ...
+FROM raw_orders o
+JOIN raw_products p ON ...`,
       language: "sql-jinja",
       requiredColumns: ["category", "order_date", "total_revenue"],
       seedTables: ["raw_orders", "raw_products"],
+      expectedRows: [
+        { category: "gadgets", order_date: "2023-04-04", total_revenue: 49.95 },
+        { category: "widgets", order_date: "2023-04-03", total_revenue: 29.99 },
+        { category: "gadgets", order_date: "2023-04-02", total_revenue: 19.99 },
+        { category: "gadgets", order_date: "2023-04-01", total_revenue: 19.98 },
+      ],
+      // Same reasoning as chapter 0: the prompt doesn't require a
+      // specific row order, so grade rows as a set.
+      orderMatters: false,
     },
   },
   {
