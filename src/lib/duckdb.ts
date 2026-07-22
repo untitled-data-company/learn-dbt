@@ -164,7 +164,30 @@ export async function initDuckDB(): Promise<void> {
   await loadSeedData();
 }
 
-export async function loadSeedData(): Promise<void> {
+// Several components (ChapterExerciseRunner, ExerciseRunner, DbtRunnerPanel)
+// each call loadSeedData() independently on mount, and React's
+// reactStrictMode double-invokes mount effects in dev — so this can be
+// called multiple times concurrently against the same shared DuckDB-WASM
+// connection. Without de-duplication, concurrent CREATE OR REPLACE +
+// INSERT sequences interleave and rows get inserted more than once
+// (e.g. raw_orders ending up with 2x/4x its rows, silently inflating
+// SUM() aggregates in exercises). Cache the in-flight/completed promise
+// so the actual seeding logic runs exactly once per connection lifetime,
+// no matter how many callers ask for it.
+let seedDataPromise: Promise<void> | null = null;
+
+export function loadSeedData(): Promise<void> {
+  if (!seedDataPromise) {
+    seedDataPromise = doLoadSeedData().catch((err) => {
+      // Allow a retry on failure instead of caching a rejected promise forever.
+      seedDataPromise = null;
+      throw err;
+    });
+  }
+  return seedDataPromise;
+}
+
+async function doLoadSeedData(): Promise<void> {
   const executor = new WasmExecutor();
 
   await executor.exec(`
@@ -250,4 +273,5 @@ export async function closeDuckDB(): Promise<void> {
     await db.terminate();
     db = null;
   }
+  seedDataPromise = null;
 }
